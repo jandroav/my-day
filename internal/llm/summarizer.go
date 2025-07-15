@@ -9,6 +9,7 @@ import (
 type Summarizer interface {
 	SummarizeIssue(issue jira.Issue) (string, error)
 	SummarizeIssues(issues []jira.Issue) (map[string]string, error)
+	SummarizeComments(comments []jira.Comment) (string, error)
 	SummarizeWorklog(worklogs []jira.WorklogEntry) (string, error)
 	GenerateStandupSummary(issues []jira.Issue, worklogs []jira.WorklogEntry) (string, error)
 }
@@ -67,6 +68,15 @@ func (d *DisabledSummarizer) SummarizeIssues(issues []jira.Issue) (map[string]st
 	}
 	
 	return summaries, nil
+}
+
+// SummarizeComments returns basic comment information
+func (d *DisabledSummarizer) SummarizeComments(comments []jira.Comment) (string, error) {
+	if len(comments) == 0 {
+		return "", nil
+	}
+	
+	return fmt.Sprintf("Added %d comments", len(comments)), nil
 }
 
 // SummarizeWorklog returns basic worklog information

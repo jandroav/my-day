@@ -30,11 +30,18 @@ the configured project keys and caches them for report generation.`,
 	},
 }
 
+// IssueWithComments represents an issue with today's comments
+type IssueWithComments struct {
+	Issue    jira.Issue     `json:"issue"`
+	Comments []jira.Comment `json:"comments"`
+}
+
 // TicketCache represents the cached ticket data
 type TicketCache struct {
-	LastSync time.Time   `json:"last_sync"`
-	Issues   []jira.Issue `json:"issues"`
-	Worklogs []jira.WorklogEntry `json:"worklogs"`
+	LastSync         time.Time            `json:"last_sync"`
+	Issues           []jira.Issue         `json:"issues"`
+	IssuesWithComments []IssueWithComments `json:"issues_with_comments"`
+	Worklogs         []jira.WorklogEntry  `json:"worklogs"`
 }
 
 func init() {
@@ -106,13 +113,40 @@ func syncTickets(cmd *cobra.Command) error {
 
 	color.White("Fetching tickets from projects: %v", projectKeys)
 
-	// Fetch recent issues
-	searchResponse, err := client.GetMyRecentIssues(ctx, projectKeys, maxResults)
+	// Fetch issues with today's comments
+	color.White("Filtering for tickets with your comments today...")
+	searchResponse, err := client.GetMyIssuesWithTodaysComments(ctx, projectKeys, maxResults)
 	if err != nil {
 		return fmt.Errorf("failed to fetch issues: %w", err)
 	}
 
-	color.Green("✓ Fetched %d issues", len(searchResponse.Issues))
+	color.Green("✓ Found %d issues with your comments today", len(searchResponse.Issues))
+
+	// Fetch comments for each issue
+	color.White("Fetching today's comments for each issue...")
+	var issuesWithComments []IssueWithComments
+	today := time.Now().Truncate(24 * time.Hour)
+	
+	// Get current user info for comment filtering
+	userInfo, err := client.GetCurrentUser(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get current user: %w", err)
+	}
+	
+	for _, issue := range searchResponse.Issues {
+		comments, err := client.GetUserCommentsToday(ctx, issue.Key, userInfo.AccountID, today)
+		if err != nil {
+			color.Yellow("Warning: Failed to fetch comments for %s: %v", issue.Key, err)
+			comments = []jira.Comment{} // Continue without comments for this issue
+		}
+		
+		issuesWithComments = append(issuesWithComments, IssueWithComments{
+			Issue:    issue,
+			Comments: comments,
+		})
+	}
+	
+	color.Green("✓ Fetched comments for %d issues", len(issuesWithComments))
 
 	// Fetch worklog if enabled
 	var worklogs []jira.WorklogEntry
@@ -133,9 +167,10 @@ func syncTickets(cmd *cobra.Command) error {
 
 	// Create cache
 	cache := TicketCache{
-		LastSync: time.Now(),
-		Issues:   searchResponse.Issues,
-		Worklogs: worklogs,
+		LastSync:           time.Now(),
+		Issues:             searchResponse.Issues,
+		IssuesWithComments: issuesWithComments,
+		Worklogs:           worklogs,
 	}
 
 	// Save to cache file
@@ -218,7 +253,7 @@ func showSyncSummary(cache *TicketCache) {
 			break
 		}
 		
-		timeSince := time.Since(issue.Fields.Updated)
+		timeSince := time.Since(issue.Fields.Updated.Time)
 		color.White("  %s - %s (%v ago)", 
 			issue.Key, 
 			truncateString(issue.Fields.Summary, 50),

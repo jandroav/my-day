@@ -74,7 +74,11 @@ This creates `~/.my-day/config.yaml` with default settings.
 
 ### 2. Jira OAuth Application Setup
 
-Before you can authenticate, you need to create a Jira OAuth application:
+Before you can authenticate, you need to create a Jira OAuth application.
+
+**📋 For complete OAuth setup instructions, see [Jira Setup Guide](jira-setup.md)**
+
+**Quick Steps:**
 
 1. **Go to Atlassian Developer Console**
    - Visit: https://developer.atlassian.com/console/myapps/
@@ -222,8 +226,9 @@ my-day auth
 
 ## Next Steps
 
-- [Usage Guide](usage.md) - Learn all commands and features
-- [Configuration Reference](configuration.md) - Detailed configuration options
+- **[Jira Setup Guide](jira-setup.md)** - Complete OAuth configuration walkthrough
+- **[Usage Guide](usage.md)** - Learn all commands and features  
+- **[Configuration Reference](configuration.md)** - Detailed configuration options
 - [Contributing](../README.md#contributing) - Help improve my-day
 
 ## Security Notes

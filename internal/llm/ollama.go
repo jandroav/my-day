@@ -47,6 +47,16 @@ func (o *OllamaClient) SummarizeIssue(issue jira.Issue) (string, error) {
 	return o.generate(prompt)
 }
 
+// SummarizeComments generates a summary of user's comments from today using Ollama
+func (o *OllamaClient) SummarizeComments(comments []jira.Comment) (string, error) {
+	if len(comments) == 0 {
+		return "", nil
+	}
+	
+	prompt := o.buildCommentsPrompt(comments)
+	return o.generate(prompt)
+}
+
 // SummarizeIssues generates summaries for multiple issues
 func (o *OllamaClient) SummarizeIssues(issues []jira.Issue) (map[string]string, error) {
 	summaries := make(map[string]string)
@@ -161,8 +171,8 @@ Summary: %s`,
 		issue.Fields.IssueType.Name,
 		issue.Fields.Summary)
 	
-	if issue.Fields.Description != "" && len(issue.Fields.Description) < 500 {
-		prompt += fmt.Sprintf("\nDescription: %s", issue.Fields.Description)
+	if issue.Fields.Description.Text != "" && len(issue.Fields.Description.Text) < 500 {
+		prompt += fmt.Sprintf("\nDescription: %s", issue.Fields.Description.Text)
 	}
 	
 	prompt += "\n\nProvide a 1-2 sentence summary suitable for a standup report:"
@@ -213,6 +223,24 @@ func (o *OllamaClient) buildStandupPrompt(issues []jira.Issue, worklogs []jira.W
 	}
 	
 	prompt += "Provide a 2-3 sentence summary for daily standup covering what was worked on and current status:"
+	
+	return prompt
+}
+
+// buildCommentsPrompt creates a prompt for summarizing user's comments
+func (o *OllamaClient) buildCommentsPrompt(comments []jira.Comment) string {
+	prompt := "Summarize the following comments made today for a daily standup report. Focus on what work was accomplished:\n\n"
+	
+	for i, comment := range comments {
+		if i >= 5 { // Limit to avoid too long prompts
+			break
+		}
+		
+		timeStr := comment.Created.Time.Format("15:04")
+		prompt += fmt.Sprintf("Comment at %s: %s\n", timeStr, comment.Body.Text)
+	}
+	
+	prompt += "\nProvide a 1-2 sentence summary of the work progress described in these comments:"
 	
 	return prompt
 }

@@ -95,14 +95,33 @@ func generateReport(cmd *cobra.Command) error {
 	})
 
 	color.Cyan("📋 Generating daily standup report...")
+	color.White("Showing tickets with your comments today")
 	if dateStr, _ := cmd.Flags().GetString("date"); dateStr != "" {
 		color.White("Report date: %s", targetDate.Format("2006-01-02"))
 	} else {
 		color.White("Report date: %s (today)", targetDate.Format("2006-01-02"))
 	}
 
-	// Generate report
-	reportContent, err := generator.Generate(cache.Issues, cache.Worklogs, targetDate)
+	// Generate report with comments if available
+	var reportContent string
+	
+	if len(cache.IssuesWithComments) > 0 {
+		// Convert to report package type
+		var reportIssuesWithComments []report.IssueWithComments
+		for _, iwc := range cache.IssuesWithComments {
+			reportIssuesWithComments = append(reportIssuesWithComments, report.IssueWithComments{
+				Issue:    iwc.Issue,
+				Comments: iwc.Comments,
+			})
+		}
+		
+		// Use comment-enhanced report generation
+		reportContent, err = generator.GenerateWithComments(reportIssuesWithComments, cache.Worklogs, targetDate)
+	} else {
+		// Fallback to basic report generation
+		reportContent, err = generator.Generate(cache.Issues, cache.Worklogs, targetDate)
+	}
+	
 	if err != nil {
 		return fmt.Errorf("failed to generate report: %w", err)
 	}

@@ -172,7 +172,7 @@ func createTestIssue() jira.Issue {
 		Key: "TEST-123",
 		Fields: jira.Fields{
 			Summary:     "Fix authentication timeout in user login API",
-			Description: "Users are experiencing timeouts when logging in through the API. Investigation shows the OAuth token validation is taking too long.",
+			Description: jira.JiraDescription{Text: "Users are experiencing timeouts when logging in through the API. Investigation shows the OAuth token validation is taking too long."},
 			Status: jira.Status{
 				Name: "In Progress",
 				Category: struct {

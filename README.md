@@ -175,11 +175,14 @@ Output:
 
 ## Jira OAuth Setup
 
+**Quick Setup:**
 1. Go to [Atlassian Developer Console](https://developer.atlassian.com/console/myapps/)
-2. Create a new OAuth 2.0 app
-3. Set redirect URI to `http://localhost:8080/callback`
-4. Add scopes: `read:jira-user`, `read:jira-work`
-5. Copy Client ID and Secret to your config
+2. Create OAuth 2.0 app with redirect URI: `http://localhost:8080/callback`
+3. Add scopes: `read:jira-user`, `read:jira-work`
+4. Copy Client ID and Secret to your config
+5. Run `my-day auth` to authenticate
+
+**📋 For detailed setup instructions, see [Jira Setup Guide](docs/jira-setup.md)**
 
 ## LLM Integration
 
@@ -236,8 +239,14 @@ go test ./...
 
 MIT License - see [LICENSE](LICENSE) file for details.
 
+## Documentation
+
+- 📋 **[Jira Setup Guide](docs/jira-setup.md)** - Complete OAuth configuration walkthrough
+- 🚀 **[Installation Guide](docs/installation.md)** - Install and initial setup
+- 📖 **[Usage Guide](docs/usage.md)** - Commands, workflows, and examples
+- ⚙️ **[Configuration Reference](docs/configuration.md)** - All configuration options
+
 ## Support
 
-- 📚 [Documentation](docs/)
 - 🐛 [Issues](https://github.com/your-org/my-day/issues)
 - 💬 [Discussions](https://github.com/your-org/my-day/discussions)

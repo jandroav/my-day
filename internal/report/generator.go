@@ -10,6 +10,12 @@ import (
 	"my-day/internal/llm"
 )
 
+// IssueWithComments represents an issue with today's comments
+type IssueWithComments struct {
+	Issue    jira.Issue     `json:"issue"`
+	Comments []jira.Comment `json:"comments"`
+}
+
 // Generator handles report generation
 type Generator struct {
 	config     *Config
@@ -67,6 +73,32 @@ func (g *Generator) Generate(issues []jira.Issue, worklogs []jira.WorklogEntry, 
 	}
 }
 
+// GenerateWithComments creates a daily standup report with comment summaries
+func (g *Generator) GenerateWithComments(issuesWithComments []IssueWithComments, worklogs []jira.WorklogEntry, targetDate time.Time) (string, error) {
+	// Extract just the issues for filtering
+	var issues []jira.Issue
+	for _, iwc := range issuesWithComments {
+		issues = append(issues, iwc.Issue)
+	}
+
+	// Filter issues and worklogs
+	filteredIssues := g.filterIssues(issues, targetDate)
+	filteredWorklogs := g.filterWorklogs(worklogs, targetDate)
+
+	// Create a map of issue key to comments for quick lookup
+	commentsMap := make(map[string][]jira.Comment)
+	for _, iwc := range issuesWithComments {
+		commentsMap[iwc.Issue.Key] = iwc.Comments
+	}
+
+	switch g.config.Format {
+	case "markdown":
+		return g.generateMarkdownWithComments(filteredIssues, commentsMap, filteredWorklogs, targetDate)
+	default:
+		return g.generateConsoleWithComments(filteredIssues, commentsMap, filteredWorklogs, targetDate)
+	}
+}
+
 func (g *Generator) filterIssues(issues []jira.Issue, targetDate time.Time) []jira.Issue {
 	var filtered []jira.Issue
 	
@@ -74,7 +106,7 @@ func (g *Generator) filterIssues(issues []jira.Issue, targetDate time.Time) []ji
 	yesterday := today.Add(-24 * time.Hour)
 
 	for _, issue := range issues {
-		issueDate := issue.Fields.Updated.Truncate(24 * time.Hour)
+		issueDate := issue.Fields.Updated.Time.Truncate(24 * time.Hour)
 		
 		include := false
 		
@@ -107,7 +139,7 @@ func (g *Generator) filterIssues(issues []jira.Issue, targetDate time.Time) []ji
 		}
 		
 		// Then by update time (most recent first)
-		return filtered[i].Fields.Updated.After(filtered[j].Fields.Updated)
+		return filtered[i].Fields.Updated.Time.After(filtered[j].Fields.Updated.Time)
 	})
 
 	return filtered
@@ -120,7 +152,7 @@ func (g *Generator) filterWorklogs(worklogs []jira.WorklogEntry, targetDate time
 	yesterday := today.Add(-24 * time.Hour)
 
 	for _, worklog := range worklogs {
-		worklogDate := worklog.Started.Truncate(24 * time.Hour)
+		worklogDate := worklog.Started.Time.Truncate(24 * time.Hour)
 		
 		include := false
 		if g.config.IncludeToday && worklogDate.Equal(today) {
@@ -137,7 +169,7 @@ func (g *Generator) filterWorklogs(worklogs []jira.WorklogEntry, targetDate time
 
 	// Sort by start time (most recent first)
 	sort.Slice(filtered, func(i, j int) bool {
-		return filtered[i].Started.After(filtered[j].Started)
+		return filtered[i].Started.Time.After(filtered[j].Started.Time)
 	})
 
 	return filtered
@@ -148,7 +180,8 @@ func (g *Generator) generateConsole(issues []jira.Issue, worklogs []jira.Worklog
 	
 	// Header
 	report.WriteString(fmt.Sprintf("🚀 Daily Standup Report - %s\n", targetDate.Format("January 2, 2006")))
-	report.WriteString(strings.Repeat("=", 50) + "\n\n")
+	report.WriteString(strings.Repeat("=", 50) + "\n")
+	report.WriteString("📝 Issues with your comments today\n\n")
 
 	// AI Summary if enabled
 	if g.config.LLMEnabled {
@@ -161,7 +194,7 @@ func (g *Generator) generateConsole(issues []jira.Issue, worklogs []jira.Worklog
 
 	// Summary
 	report.WriteString("📊 SUMMARY\n")
-	report.WriteString(fmt.Sprintf("• Issues: %d\n", len(issues)))
+	report.WriteString(fmt.Sprintf("• Issues with comments today: %d\n", len(issues)))
 	report.WriteString(fmt.Sprintf("• Worklog entries: %d\n", len(worklogs)))
 	report.WriteString("\n")
 
@@ -211,11 +244,95 @@ func (g *Generator) generateConsole(issues []jira.Issue, worklogs []jira.Worklog
 	return report.String(), nil
 }
 
+func (g *Generator) generateConsoleWithComments(issues []jira.Issue, commentsMap map[string][]jira.Comment, worklogs []jira.WorklogEntry, targetDate time.Time) (string, error) {
+	var report strings.Builder
+	
+	// Header
+	report.WriteString(fmt.Sprintf("🚀 Daily Standup Report - %s\n", targetDate.Format("January 2, 2006")))
+	report.WriteString(strings.Repeat("=", 50) + "\n")
+	report.WriteString("📝 Issues with your comments today\n\n")
+
+	// AI Summary if enabled - based on comments
+	if g.config.LLMEnabled {
+		allComments := []jira.Comment{}
+		for _, comments := range commentsMap {
+			allComments = append(allComments, comments...)
+		}
+		
+		if len(allComments) > 0 {
+			// Create an intelligent summary of all today's work
+			summary := g.generateOverallWorkSummary(allComments)
+			if summary != "" {
+				report.WriteString("🤖 AI SUMMARY OF TODAY'S WORK\n")
+				report.WriteString(fmt.Sprintf("%s\n\n", summary))
+			}
+		}
+	}
+
+	// Summary
+	report.WriteString("📊 SUMMARY\n")
+	report.WriteString(fmt.Sprintf("• Issues with comments today: %d\n", len(issues)))
+	
+	totalComments := 0
+	for _, comments := range commentsMap {
+		totalComments += len(comments)
+	}
+	report.WriteString(fmt.Sprintf("• Total comments added: %d\n", totalComments))
+	report.WriteString(fmt.Sprintf("• Worklog entries: %d\n", len(worklogs)))
+	report.WriteString("\n")
+
+	// Group issues by status
+	statusGroups := groupIssuesByStatus(issues)
+	
+	// In Progress section
+	if inProgress, exists := statusGroups["In Progress"]; exists && len(inProgress) > 0 {
+		report.WriteString("🔄 CURRENTLY WORKING ON\n")
+		for _, issue := range inProgress {
+			report.WriteString(g.formatIssueConsoleWithComments(issue, commentsMap[issue.Key]))
+		}
+		report.WriteString("\n")
+	}
+
+	// Recently completed section
+	if done, exists := statusGroups["Done"]; exists && len(done) > 0 {
+		report.WriteString("✅ RECENTLY COMPLETED\n")
+		for _, issue := range done {
+			report.WriteString(g.formatIssueConsoleWithComments(issue, commentsMap[issue.Key]))
+		}
+		report.WriteString("\n")
+	}
+
+	// To Do section
+	if todo, exists := statusGroups["To Do"]; exists && len(todo) > 0 {
+		report.WriteString("📋 TO DO\n")
+		for _, issue := range todo {
+			report.WriteString(g.formatIssueConsoleWithComments(issue, commentsMap[issue.Key]))
+		}
+		report.WriteString("\n")
+	}
+
+	// Worklog section
+	if len(worklogs) > 0 {
+		report.WriteString("⏰ WORK LOG\n")
+		for _, worklog := range worklogs {
+			report.WriteString(g.formatWorklogConsole(worklog))
+		}
+		report.WriteString("\n")
+	}
+
+	// Footer
+	report.WriteString("---\n")
+	report.WriteString("Generated by my-day CLI 🤖\n")
+
+	return report.String(), nil
+}
+
 func (g *Generator) generateMarkdown(issues []jira.Issue, worklogs []jira.WorklogEntry, targetDate time.Time) (string, error) {
 	var report strings.Builder
 	
 	// Header
 	report.WriteString(fmt.Sprintf("# Daily Standup Report - %s\n\n", targetDate.Format("January 2, 2006")))
+	report.WriteString("*Issues with your comments today*\n\n")
 
 	// AI Summary if enabled
 	if g.config.LLMEnabled {
@@ -228,7 +345,7 @@ func (g *Generator) generateMarkdown(issues []jira.Issue, worklogs []jira.Worklo
 
 	// Summary
 	report.WriteString("## Summary\n\n")
-	report.WriteString(fmt.Sprintf("- **Issues**: %d\n", len(issues)))
+	report.WriteString(fmt.Sprintf("- **Issues with comments today**: %d\n", len(issues)))
 	report.WriteString(fmt.Sprintf("- **Worklog entries**: %d\n\n", len(worklogs)))
 
 	// Group issues by status
@@ -302,11 +419,10 @@ func (g *Generator) formatIssueConsole(issue jira.Issue) string {
 			issue.Fields.Priority.Name,
 			issue.Fields.Status.Name))
 		result.WriteString(fmt.Sprintf("    Updated: %s\n", 
-			issue.Fields.Updated.Format("Jan 2, 15:04")))
+			issue.Fields.Updated.Time.Format("Jan 2, 15:04")))
 		
-		if issue.Fields.Description != "" {
-			desc := truncateString(issue.Fields.Description, 100)
-			result.WriteString(fmt.Sprintf("    %s\n", desc))
+		if issue.Fields.Description.Text != "" {
+			result.WriteString(fmt.Sprintf("    %s\n", issue.Fields.Description.Text))
 		}
 	}
 	
@@ -330,11 +446,10 @@ func (g *Generator) formatIssueMarkdown(issue jira.Issue) string {
 	if g.config.Detailed {
 		result += fmt.Sprintf("  - Priority: %s %s\n", priorityIcon, issue.Fields.Priority.Name)
 		result += fmt.Sprintf("  - Status: %s\n", issue.Fields.Status.Name)
-		result += fmt.Sprintf("  - Updated: %s\n", issue.Fields.Updated.Format("Jan 2, 15:04"))
+		result += fmt.Sprintf("  - Updated: %s\n", issue.Fields.Updated.Time.Format("Jan 2, 15:04"))
 		
-		if issue.Fields.Description != "" {
-			desc := truncateString(issue.Fields.Description, 200)
-			result += fmt.Sprintf("  - %s\n", desc)
+		if issue.Fields.Description.Text != "" {
+			result += fmt.Sprintf("  - %s\n", issue.Fields.Description.Text)
 		}
 	}
 	
@@ -345,11 +460,10 @@ func (g *Generator) formatIssueMarkdown(issue jira.Issue) string {
 func (g *Generator) formatWorklogConsole(worklog jira.WorklogEntry) string {
 	result := fmt.Sprintf("  ⏱️  [%s] %s\n", 
 		worklog.IssueID,
-		worklog.Started.Format("Jan 2, 15:04"))
+		worklog.Started.Time.Format("Jan 2, 15:04"))
 	
 	if worklog.Comment != "" {
-		comment := truncateString(worklog.Comment, 80)
-		result += fmt.Sprintf("    %s\n", comment)
+		result += fmt.Sprintf("    %s\n", worklog.Comment)
 	}
 	
 	result += "\n"
@@ -359,11 +473,10 @@ func (g *Generator) formatWorklogConsole(worklog jira.WorklogEntry) string {
 func (g *Generator) formatWorklogMarkdown(worklog jira.WorklogEntry) string {
 	result := fmt.Sprintf("- ⏱️ **[%s]** %s\n", 
 		worklog.IssueID,
-		worklog.Started.Format("Jan 2, 15:04"))
+		worklog.Started.Time.Format("Jan 2, 15:04"))
 	
 	if worklog.Comment != "" {
-		comment := truncateString(worklog.Comment, 150)
-		result += fmt.Sprintf("  - %s\n", comment)
+		result += fmt.Sprintf("  - %s\n", worklog.Comment)
 	}
 	
 	result += "\n"
@@ -453,4 +566,263 @@ func truncateString(s string, maxLen int) string {
 		return s
 	}
 	return s[:maxLen-3] + "..."
+}
+
+func (g *Generator) formatIssueConsoleWithComments(issue jira.Issue, comments []jira.Comment) string {
+	var result strings.Builder
+	
+	statusIcon := getStatusIcon(issue.Fields.Status.Name)
+	priorityIcon := getPriorityIcon(issue.Fields.Priority.Name)
+	
+	result.WriteString(fmt.Sprintf("  %s %s [%s] %s\n", 
+		statusIcon, 
+		issue.Key, 
+		issue.Fields.Project.Key,
+		issue.Fields.Summary))
+	
+	// Add comment summary if enabled
+	if g.config.LLMEnabled && len(comments) > 0 {
+		if summary, err := g.summarizer.SummarizeComments(comments); err == nil && summary != "" {
+			result.WriteString(fmt.Sprintf("    💬 Today's work: %s\n", summary))
+		}
+	}
+	
+	if g.config.Detailed {
+		result.WriteString(fmt.Sprintf("    Priority: %s %s | Status: %s\n", 
+			priorityIcon,
+			issue.Fields.Priority.Name,
+			issue.Fields.Status.Name))
+		result.WriteString(fmt.Sprintf("    Updated: %s\n", 
+			issue.Fields.Updated.Time.Format("Jan 2, 15:04")))
+		
+		// Show comment count and latest comment
+		if len(comments) > 0 {
+			result.WriteString(fmt.Sprintf("    Comments today: %d\n", len(comments)))
+			if len(comments) > 0 {
+				latestComment := comments[len(comments)-1]
+				// Show full comment text without truncation
+				result.WriteString(fmt.Sprintf("    Latest: %s\n", latestComment.Body.Text))
+			}
+		}
+	}
+	
+	result.WriteString("\n")
+	return result.String()
+}
+
+func (g *Generator) generateMarkdownWithComments(issues []jira.Issue, commentsMap map[string][]jira.Comment, worklogs []jira.WorklogEntry, targetDate time.Time) (string, error) {
+	var report strings.Builder
+	
+	// Header
+	report.WriteString(fmt.Sprintf("# Daily Standup Report - %s\n\n", targetDate.Format("January 2, 2006")))
+	report.WriteString("*Issues with your comments today*\n\n")
+
+	// AI Summary if enabled - based on comments
+	if g.config.LLMEnabled {
+		allComments := []jira.Comment{}
+		for _, comments := range commentsMap {
+			allComments = append(allComments, comments...)
+		}
+		
+		if len(allComments) > 0 {
+			// Create an intelligent summary of all today's work
+			summary := g.generateOverallWorkSummary(allComments)
+			if summary != "" {
+				report.WriteString("## 🤖 AI Summary of Today's Work\n\n")
+				report.WriteString(fmt.Sprintf("%s\n\n", summary))
+			}
+		}
+	}
+
+	// Summary
+	report.WriteString("## Summary\n\n")
+	report.WriteString(fmt.Sprintf("- **Issues with comments today**: %d\n", len(issues)))
+	
+	totalComments := 0
+	for _, comments := range commentsMap {
+		totalComments += len(comments)
+	}
+	report.WriteString(fmt.Sprintf("- **Total comments added**: %d\n", totalComments))
+	report.WriteString(fmt.Sprintf("- **Worklog entries**: %d\n\n", len(worklogs)))
+
+	// Group issues by status
+	statusGroups := groupIssuesByStatus(issues)
+	
+	// In Progress section
+	if inProgress, exists := statusGroups["In Progress"]; exists && len(inProgress) > 0 {
+		report.WriteString("## 🔄 Currently Working On\n\n")
+		for _, issue := range inProgress {
+			report.WriteString(g.formatIssueMarkdownWithComments(issue, commentsMap[issue.Key]))
+		}
+		report.WriteString("\n")
+	}
+
+	// Recently completed section
+	if done, exists := statusGroups["Done"]; exists && len(done) > 0 {
+		report.WriteString("## ✅ Recently Completed\n\n")
+		for _, issue := range done {
+			report.WriteString(g.formatIssueMarkdownWithComments(issue, commentsMap[issue.Key]))
+		}
+		report.WriteString("\n")
+	}
+
+	// To Do section
+	if todo, exists := statusGroups["To Do"]; exists && len(todo) > 0 {
+		report.WriteString("## 📋 To Do\n\n")
+		for _, issue := range todo {
+			report.WriteString(g.formatIssueMarkdownWithComments(issue, commentsMap[issue.Key]))
+		}
+		report.WriteString("\n")
+	}
+
+	// Worklog section
+	if len(worklogs) > 0 {
+		report.WriteString("## ⏰ Work Log\n\n")
+		for _, worklog := range worklogs {
+			report.WriteString(g.formatWorklogMarkdown(worklog))
+		}
+		report.WriteString("\n")
+	}
+
+	// Footer
+	report.WriteString("---\n")
+	report.WriteString("*Generated by my-day CLI*\n")
+
+	return report.String(), nil
+}
+
+func (g *Generator) formatIssueMarkdownWithComments(issue jira.Issue, comments []jira.Comment) string {
+	statusIcon := getStatusIcon(issue.Fields.Status.Name)
+	priorityIcon := getPriorityIcon(issue.Fields.Priority.Name)
+	
+	result := fmt.Sprintf("- %s **[%s]** %s\n", statusIcon, issue.Key, issue.Fields.Summary)
+	
+	// Add comment summary if enabled
+	if g.config.LLMEnabled && len(comments) > 0 {
+		if summary, err := g.summarizer.SummarizeComments(comments); err == nil && summary != "" {
+			result += fmt.Sprintf("  - 💬 **Today's work**: %s\n", summary)
+		}
+	}
+	
+	if g.config.Detailed {
+		result += fmt.Sprintf("  - Priority: %s %s\n", priorityIcon, issue.Fields.Priority.Name)
+		result += fmt.Sprintf("  - Status: %s\n", issue.Fields.Status.Name)
+		result += fmt.Sprintf("  - Updated: %s\n", issue.Fields.Updated.Time.Format("Jan 2, 15:04"))
+		
+		// Show comment count and latest comment
+		if len(comments) > 0 {
+			result += fmt.Sprintf("  - Comments today: %d\n", len(comments))
+			if len(comments) > 0 {
+				latestComment := comments[len(comments)-1]
+				// Show full comment text without truncation
+				result += fmt.Sprintf("  - Latest comment: %s\n", latestComment.Body.Text)
+			}
+		}
+	}
+	
+	result += "\n"
+	return result
+}
+
+// generateOverallWorkSummary creates an intelligent summary of all today's work
+func (g *Generator) generateOverallWorkSummary(allComments []jira.Comment) string {
+	if len(allComments) == 0 {
+		return ""
+	}
+	
+	// Collect all activities and categorize them
+	var activities []string
+	var topics []string
+	
+	for _, comment := range allComments {
+		text := strings.ToLower(comment.Body.Text)
+		
+		// Identify key activities
+		if strings.Contains(text, "merged") && strings.Contains(text, "pr") {
+			activities = append(activities, "Merged PRs for deployment")
+		} else if strings.Contains(text, "created") && strings.Contains(text, "pr") {
+			activities = append(activities, "Created foundational PRs")
+		}
+		
+		if strings.Contains(text, "terraform") || strings.Contains(text, "spacelift") {
+			if strings.Contains(text, "secrets") {
+				activities = append(activities, "Configured secrets management infrastructure")
+			} else {
+				activities = append(activities, "Updated infrastructure configuration")
+			}
+		}
+		
+		if strings.Contains(text, "database") && strings.Contains(text, "permissions") {
+			activities = append(activities, "Worked on database permissions")
+		}
+		
+		if strings.Contains(text, "vpc") && strings.Contains(text, "ecr") {
+			activities = append(activities, "Fixed VPC endpoint configuration")
+		}
+		
+		if strings.Contains(text, "testing") || strings.Contains(text, "performed") {
+			activities = append(activities, "Performed testing and validation")
+		}
+		
+		// Collect topics
+		topicMap := map[string]string{
+			"terraform": "Terraform",
+			"spacelift": "Spacelift",
+			"aws": "AWS",
+			"database": "Database",
+			"secrets": "Secrets Management",
+			"vpc": "VPC",
+			"ecr": "ECR",
+			"oidc": "OIDC",
+		}
+		
+		for keyword, topic := range topicMap {
+			if strings.Contains(text, keyword) {
+				topics = append(topics, topic)
+			}
+		}
+	}
+	
+	// Remove duplicates and create summary
+	activities = removeDuplicates(activities)
+	topics = removeDuplicates(topics)
+	
+	var summary []string
+	
+	if len(activities) > 0 {
+		if len(activities) == 1 {
+			summary = append(summary, activities[0])
+		} else if len(activities) <= 3 {
+			summary = append(summary, strings.Join(activities, ", "))
+		} else {
+			summary = append(summary, strings.Join(activities[:3], ", ")+" and more infrastructure work")
+		}
+	}
+	
+	if len(topics) > 3 {
+		summary = append(summary, fmt.Sprintf("Focus areas: %s", strings.Join(topics[:3], ", ")))
+	} else if len(topics) > 0 && len(activities) == 0 {
+		summary = append(summary, fmt.Sprintf("Technical work on %s", strings.Join(topics, ", ")))
+	}
+	
+	if len(summary) == 0 {
+		return fmt.Sprintf("Worked on %d development tasks with detailed progress updates", len(allComments))
+	}
+	
+	return strings.Join(summary, ". ")
+}
+
+// removeDuplicates removes duplicate strings from a slice
+func removeDuplicates(slice []string) []string {
+	seen := make(map[string]bool)
+	var result []string
+	
+	for _, item := range slice {
+		if !seen[item] {
+			seen[item] = true
+			result = append(result, item)
+		}
+	}
+	
+	return result
 }
