@@ -101,7 +101,6 @@ After creating the app, you'll be taken to the app management page:
 2. **Generate Client Secret:**
    - Click **"New secret"** button
    - Copy the **"Client Secret"** immediately
-   - It looks like: `{{ATLASSIAN_API_TOKEN}}`
    - **Important**: You can only see this once! Store it securely.
    - **Never commit this to version control**
 
