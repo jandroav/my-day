@@ -223,30 +223,8 @@ func (o *OllamaClient) buildWorklogPrompt(worklogs []jira.WorklogEntry) string {
 
 // buildStandupPrompt creates a prompt for generating an overall standup summary
 func (o *OllamaClient) buildStandupPrompt(issues []jira.Issue, worklogs []jira.WorklogEntry) string {
-	prompt := "Create a brief standup summary based on this Jira activity:\n\n"
-	
-	if len(issues) > 0 {
-		prompt += "Recent Issues:\n"
-		for i, issue := range issues {
-			if i >= 5 { // Limit to most important issues
-				break
-			}
-			prompt += fmt.Sprintf("- %s [%s]: %s (Status: %s)\n", 
-				issue.Key, 
-				issue.Fields.Project.Key,
-				issue.Fields.Summary,
-				issue.Fields.Status.Name)
-		}
-		prompt += "\n"
-	}
-	
-	if len(worklogs) > 0 {
-		prompt += fmt.Sprintf("Work logged on %d items\n\n", len(worklogs))
-	}
-	
-	prompt += "Provide a 2-3 sentence summary for daily standup covering what was worked on and current status:"
-	
-	return prompt
+	// Use enhanced prompt generation with configuration-aware templates
+	return o.buildEnhancedStandupPrompt(issues, nil, worklogs)
 }
 
 // buildCommentsPrompt creates a prompt for summarizing user's comments
