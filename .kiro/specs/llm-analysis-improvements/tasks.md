@@ -52,20 +52,20 @@
     - Update SummarizeComments to leverage ProcessedComment insights
     - _Requirements: 1.1, 1.2, 1.3, 2.1, 2.2_
 
-  - [-] 5.2 Add method to process issues with comments using new pipeline
+  - [ ] 5.2 Add method to process issues with comments using new pipeline
     - Create ProcessIssuesWithComments method in embedded LLM
     - Integrate enhanced technical context extraction
     - Add fallback handling when enhanced processing fails
     - _Requirements: 1.4, 5.1, 5.2_
 
-- [ ] 6. Add debug and error handling capabilities
-  - [ ] 6.1 Implement debug logging system
+- [x] 6. Add debug and error handling capabilities
+  - [x] 6.1 Implement debug logging system
     - Add verbose mode logging for LLM processing steps
     - Create debug output showing input data and processing decisions
     - Add summary quality validation and warnings
     - _Requirements: 4.1, 4.2, 4.3_
 
-  - [ ] 6.2 Enhance error handling and fallbacks
+  - [x] 6.2 Enhance error handling and fallbacks
     - Implement graceful degradation when LLM processing fails
     - Add meaningful error messages for common failure scenarios
     - Create fallback summaries when comment processing fails

@@ -8,13 +8,68 @@ import (
 
 // EmbeddedLLM provides lightweight text summarization without external dependencies
 type EmbeddedLLM struct {
-	model string
+	model        string
+	debugLogger  *DebugLogger
+	errorHandler *ErrorHandler
 }
 
 // NewEmbeddedLLM creates a new embedded LLM instance
 func NewEmbeddedLLM(model string) *EmbeddedLLM {
+	debugLogger := NewDebugLogger(false, false) // Debug disabled by default
 	return &EmbeddedLLM{
-		model: model,
+		model:        model,
+		debugLogger:  debugLogger,
+		errorHandler: NewErrorHandler("graceful", debugLogger),
+	}
+}
+
+// NewEmbeddedLLMWithDebug creates a new embedded LLM instance with debug logging enabled
+func NewEmbeddedLLMWithDebug(model string, verbose bool) *EmbeddedLLM {
+	debugLogger := NewDebugLogger(true, verbose)
+	return &EmbeddedLLM{
+		model:        model,
+		debugLogger:  debugLogger,
+		errorHandler: NewErrorHandler("graceful", debugLogger),
+	}
+}
+
+// EnableDebug enables debug logging
+func (e *EmbeddedLLM) EnableDebug(verbose bool) {
+	if e.debugLogger != nil {
+		e.debugLogger.Close()
+	}
+	e.debugLogger = NewDebugLogger(true, verbose)
+	e.errorHandler = NewErrorHandler("graceful", e.debugLogger)
+}
+
+// DisableDebug disables debug logging
+func (e *EmbeddedLLM) DisableDebug() {
+	if e.debugLogger != nil {
+		e.debugLogger.Close()
+		e.debugLogger = NewDebugLogger(false, false)
+	}
+	e.errorHandler = NewErrorHandler("graceful", e.debugLogger)
+}
+
+// SetFallbackStrategy sets the fallback strategy for error handling
+func (e *EmbeddedLLM) SetFallbackStrategy(strategy string) {
+	if e.errorHandler != nil {
+		e.errorHandler = NewErrorHandler(strategy, e.debugLogger)
+	}
+}
+
+// GetDebugReport returns the current debug report
+func (e *EmbeddedLLM) GetDebugReport() (*DebugReport, error) {
+	if e.debugLogger == nil {
+		return nil, fmt.Errorf("debug logger not initialized")
+	}
+	return e.debugLogger.GetDebugReport()
+}
+
+// PrintDebugSummary prints debug summary to stdout
+func (e *EmbeddedLLM) PrintDebugSummary() {
+	if e.debugLogger != nil {
+		e.debugLogger.PrintDebugSummary()
 	}
 }
 
@@ -27,7 +82,28 @@ func (e *EmbeddedLLM) SummarizeIssue(issue jira.Issue) (string, error) {
 
 // SummarizeComments generates a summary of user's comments from today using enhanced processing
 func (e *EmbeddedLLM) SummarizeComments(comments []jira.Comment) (string, error) {
+	if e.debugLogger != nil {
+		e.debugLogger.LogProcessingStep("summarize_comments", map[string]interface{}{
+			"comment_count": len(comments),
+		})
+	}
+	
+	// Validate input
+	if validationErr := e.errorHandler.ValidateInput(comments); validationErr != nil {
+		fallbackResult := e.errorHandler.HandleCommentProcessingError(validationErr, comments)
+		if fallbackResult.Success {
+			if e.debugLogger != nil {
+				e.debugLogger.LogStepCompletion("summarize_comments", fallbackResult.Result, nil)
+			}
+			return fallbackResult.Result.(string), nil
+		}
+		return "", fmt.Errorf("comment validation failed: %s", validationErr.Message)
+	}
+	
 	if len(comments) == 0 {
+		if e.debugLogger != nil {
+			e.debugLogger.LogStepCompletion("summarize_comments", "", nil)
+		}
 		return "", nil
 	}
 	
@@ -56,7 +132,13 @@ func (e *EmbeddedLLM) SummarizeComments(comments []jira.Comment) (string, error)
 	}
 	
 	// Generate enhanced summary using processed comments and pattern matcher
-	return e.generateEnhancedCommentSummary(processedComments, patternMatcher)
+	summary, err := e.generateEnhancedCommentSummary(processedComments, patternMatcher)
+	
+	if e.debugLogger != nil {
+		e.debugLogger.LogStepCompletion("summarize_comments", summary, err)
+	}
+	
+	return summary, err
 }
 
 // processCommentWithProcessor processes a single comment using the enhanced data processor
@@ -572,8 +654,20 @@ func (e *EmbeddedLLM) GenerateStandupSummary(issues []jira.Issue, worklogs []jir
 
 // GenerateStandupSummaryWithComments creates an enhanced summary using comment data
 func (e *EmbeddedLLM) GenerateStandupSummaryWithComments(issues []jira.Issue, comments []jira.Comment, worklogs []jira.WorklogEntry) (string, error) {
+	if e.debugLogger != nil {
+		e.debugLogger.LogProcessingStep("generate_standup_summary", map[string]interface{}{
+			"issue_count":   len(issues),
+			"comment_count": len(comments),
+			"worklog_count": len(worklogs),
+		})
+	}
+	
 	if len(issues) == 0 && len(comments) == 0 && len(worklogs) == 0 {
-		return "No recent activity to report", nil
+		summary := "No recent activity to report"
+		if e.debugLogger != nil {
+			e.debugLogger.LogStepCompletion("generate_standup_summary", summary, nil)
+		}
+		return summary, nil
 	}
 	
 	// Use enhanced data processing pipeline
@@ -582,15 +676,26 @@ func (e *EmbeddedLLM) GenerateStandupSummaryWithComments(issues []jira.Issue, co
 	// Process issues with comments using enhanced pipeline
 	processedData, err := processor.ProcessIssuesWithComments(issues, comments)
 	if err != nil {
+		if e.debugLogger != nil {
+			e.debugLogger.AddWarning("processing_failure", "Enhanced processing failed, using fallback", err.Error(), "medium")
+		}
 		// Fallback to original method if enhanced processing fails
-		return e.generateFallbackSummary(issues, comments, worklogs)
+		fallbackSummary, fallbackErr := e.generateFallbackSummary(issues, comments, worklogs)
+		if e.debugLogger != nil {
+			e.debugLogger.LogStepCompletion("generate_standup_summary", fallbackSummary, fallbackErr)
+		}
+		return fallbackSummary, fallbackErr
 	}
 	
 	// Use technical pattern matcher for enhanced analysis
 	patternMatcher := NewTechnicalPatternMatcher(false)
 	
 	// Generate enhanced summary using processed data
-	return e.generateEnhancedStandupSummary(processedData, patternMatcher, worklogs)
+	summary, err := e.generateEnhancedStandupSummary(processedData, patternMatcher, worklogs)
+	if e.debugLogger != nil {
+		e.debugLogger.LogStepCompletion("generate_standup_summary", summary, err)
+	}
+	return summary, err
 }
 
 // summarizeSingleComment creates a concise summary of a single comment
@@ -3042,4 +3147,458 @@ func (e *EmbeddedLLM) applyCommentPatternInsights(comment *ProcessedComment, pat
 	comment.TechnicalTerms = e.removeDuplicateStrings(comment.TechnicalTerms)
 	comment.ExtractedActions = e.removeDuplicateStrings(comment.ExtractedActions)
 	comment.KeyTopics = e.removeDuplicateStrings(comment.KeyTopics)
+}
+//
+ generateEnhancedCommentSummary generates a summary using processed comments and pattern matcher
+func (e *EmbeddedLLM) generateEnhancedCommentSummary(processedComments []ProcessedComment, patternMatcher *TechnicalPatternMatcher) (string, error) {
+	if len(processedComments) == 0 {
+		return "No comments processed", nil
+	}
+	
+	if e.debugLogger != nil {
+		e.debugLogger.LogProcessingStep("enhanced_comment_summary", map[string]interface{}{
+			"processed_comment_count": len(processedComments),
+		})
+	}
+	
+	// Categorize activities by completion status and importance
+	var completedWork []string
+	var inProgressWork []string
+	var blockedWork []string
+	var allTopics []string
+	
+	for _, comment := range processedComments {
+		// Extract key information based on completion status
+		switch comment.CompletionStatus {
+		case "completed":
+			if len(comment.ExtractedActions) > 0 {
+				activity := fmt.Sprintf("%s %s", comment.ExtractedActions[0], strings.Join(comment.KeyTopics, " "))
+				completedWork = append(completedWork, strings.TrimSpace(activity))
+			}
+		case "in_progress":
+			if len(comment.ExtractedActions) > 0 {
+				activity := fmt.Sprintf("%s %s", comment.ExtractedActions[0], strings.Join(comment.KeyTopics, " "))
+				inProgressWork = append(inProgressWork, strings.TrimSpace(activity))
+			}
+		case "blocked":
+			if len(comment.ExtractedActions) > 0 {
+				activity := fmt.Sprintf("blocked on %s", strings.Join(comment.KeyTopics, " "))
+				blockedWork = append(blockedWork, strings.TrimSpace(activity))
+			}
+		}
+		
+		// Collect all topics
+		allTopics = append(allTopics, comment.KeyTopics...)
+	}
+	
+	// Remove duplicates
+	completedWork = e.removeDuplicateStrings(completedWork)
+	inProgressWork = e.removeDuplicateStrings(inProgressWork)
+	blockedWork = e.removeDuplicateStrings(blockedWork)
+	allTopics = e.removeDuplicateStrings(allTopics)
+	
+	// Build prioritized summary
+	summary := e.buildEnhancedSummary(completedWork, inProgressWork, blockedWork, allTopics)
+	
+	if e.debugLogger != nil {
+		e.debugLogger.LogStepCompletion("enhanced_comment_summary", summary, nil)
+	}
+	
+	return summary, nil
+}
+
+// buildEnhancedSummary builds a coherent summary from categorized work
+func (e *EmbeddedLLM) buildEnhancedSummary(completed, inProgress, blocked, topics []string) string {
+	var parts []string
+	
+	// Prioritize completed work
+	if len(completed) > 0 {
+		if len(completed) == 1 {
+			parts = append(parts, completed[0])
+		} else if len(completed) <= 3 {
+			parts = append(parts, strings.Join(completed, ", "))
+		} else {
+			parts = append(parts, strings.Join(completed[:2], ", ")+" and other completed work")
+		}
+	}
+	
+	// Add blocked work (high priority)
+	if len(blocked) > 0 && len(parts) < 2 {
+		if len(blocked) == 1 {
+			parts = append(parts, blocked[0])
+		} else {
+			parts = append(parts, strings.Join(blocked[:1], ", ")+" (blocked)")
+		}
+	}
+	
+	// Add in-progress work
+	if len(inProgress) > 0 && len(parts) < 2 {
+		if len(inProgress) == 1 {
+			parts = append(parts, inProgress[0])
+		} else {
+			parts = append(parts, strings.Join(inProgress[:1], ", ")+" (in progress)")
+		}
+	}
+	
+	// If we still don't have content, use topics
+	if len(parts) == 0 && len(topics) > 0 {
+		if len(topics) <= 3 {
+			return "Technical work on " + strings.Join(topics, ", ")
+		} else {
+			return "Technical work on " + strings.Join(topics[:3], ", ") + " and more"
+		}
+	}
+	
+	// Combine parts into final summary
+	if len(parts) == 0 {
+		return "Multiple development activities"
+	}
+	
+	return strings.Join(parts, "; ")
+}
+
+// generateFallbackSummary generates a fallback summary when enhanced processing fails
+func (e *EmbeddedLLM) generateFallbackSummary(issues []jira.Issue, comments []jira.Comment, worklogs []jira.WorklogEntry) (string, error) {
+	if e.debugLogger != nil {
+		e.debugLogger.LogProcessingStep("fallback_summary", map[string]interface{}{
+			"issue_count":   len(issues),
+			"comment_count": len(comments),
+			"worklog_count": len(worklogs),
+		})
+	}
+	
+	// Use the original GenerateStandupSummary method as fallback
+	summary, err := e.GenerateStandupSummary(issues, worklogs)
+	
+	if e.debugLogger != nil {
+		e.debugLogger.LogStepCompletion("fallback_summary", summary, err)
+	}
+	
+	return summary, err
+}
+
+// generateEnhancedStandupSummary generates an enhanced standup summary using processed data
+func (e *EmbeddedLLM) generateEnhancedStandupSummary(processedData *ProcessedData, patternMatcher *TechnicalPatternMatcher, worklogs []jira.WorklogEntry) (string, error) {
+	if e.debugLogger != nil {
+		e.debugLogger.LogProcessingStep("enhanced_standup_summary", map[string]interface{}{
+			"processed_issues": len(processedData.Issues),
+			"worklog_count":   len(worklogs),
+		})
+	}
+	
+	if len(processedData.Issues) == 0 && len(worklogs) == 0 {
+		summary := "No recent activity to report"
+		if e.debugLogger != nil {
+			e.debugLogger.LogStepCompletion("enhanced_standup_summary", summary, nil)
+		}
+		return summary, nil
+	}
+	
+	// Extract key activities from processed data
+	var completedActivities []string
+	var inProgressActivities []string
+	var blockedActivities []string
+	var allTechnologies []string
+	
+	for _, issue := range processedData.Issues {
+		switch issue.CompletionStatus {
+		case "completed":
+			if issue.WorkSummary != "" {
+				completedActivities = append(completedActivities, issue.WorkSummary)
+			}
+		case "in_progress":
+			if issue.WorkSummary != "" {
+				inProgressActivities = append(inProgressActivities, issue.WorkSummary)
+			}
+		case "blocked":
+			if issue.WorkSummary != "" {
+				blockedActivities = append(blockedActivities, issue.WorkSummary)
+			}
+		}
+		
+		// Collect key activities
+		completedActivities = append(completedActivities, issue.KeyActivities...)
+	}
+	
+	// Extract technologies from technical context
+	if processedData.TechnicalContext != nil {
+		allTechnologies = append(allTechnologies, processedData.TechnicalContext.Technologies...)
+	}
+	
+	// Process worklog entries
+	for _, worklog := range worklogs {
+		if worklog.Comment != "" {
+			// Use pattern matcher to analyze worklog comments
+			if patterns, err := patternMatcher.MatchAllPatterns(worklog.Comment); err == nil {
+				if e.debugLogger != nil {
+					e.debugLogger.LogPatternMatches([]PatternMatch{}) // Simplified for now
+				}
+			}
+			
+			// Extract activities from worklog
+			worklogSummary := e.summarizeWorklogComments([]string{worklog.Comment})
+			if worklogSummary != "" && worklogSummary != "work logged" {
+				inProgressActivities = append(inProgressActivities, worklogSummary)
+			}
+		}
+	}
+	
+	// Remove duplicates and build final summary
+	completedActivities = e.removeDuplicateStrings(completedActivities)
+	inProgressActivities = e.removeDuplicateStrings(inProgressActivities)
+	blockedActivities = e.removeDuplicateStrings(blockedActivities)
+	allTechnologies = e.removeDuplicateStrings(allTechnologies)
+	
+	summary := e.buildStandupSummary(completedActivities, inProgressActivities, blockedActivities, allTechnologies)
+	
+	if e.debugLogger != nil {
+		e.debugLogger.LogSummaryGeneration(
+			fmt.Sprintf("Issues: %d, Comments: %d", len(processedData.Issues), len(worklogs)),
+			summary,
+		)
+		e.debugLogger.LogStepCompletion("enhanced_standup_summary", summary, nil)
+	}
+	
+	return summary, nil
+}
+
+// buildStandupSummary builds a comprehensive standup summary
+func (e *EmbeddedLLM) buildStandupSummary(completed, inProgress, blocked, technologies []string) string {
+	var parts []string
+	
+	// Start with completed work (highest priority)
+	if len(completed) > 0 {
+		if len(completed) == 1 {
+			parts = append(parts, "Completed: "+completed[0])
+		} else if len(completed) <= 3 {
+			parts = append(parts, "Completed: "+strings.Join(completed, ", "))
+		} else {
+			parts = append(parts, fmt.Sprintf("Completed: %s and %d other items", 
+				strings.Join(completed[:2], ", "), len(completed)-2))
+		}
+	}
+	
+	// Add blocked work (high visibility)
+	if len(blocked) > 0 {
+		if len(blocked) == 1 {
+			parts = append(parts, "Blocked: "+blocked[0])
+		} else {
+			parts = append(parts, "Blocked: "+strings.Join(blocked[:2], ", "))
+		}
+	}
+	
+	// Add in-progress work
+	if len(inProgress) > 0 && len(parts) < 3 {
+		if len(inProgress) == 1 {
+			parts = append(parts, "Working on: "+inProgress[0])
+		} else if len(inProgress) <= 2 {
+			parts = append(parts, "Working on: "+strings.Join(inProgress, ", "))
+		} else {
+			parts = append(parts, fmt.Sprintf("Working on: %s and %d other items", 
+				strings.Join(inProgress[:2], ", "), len(inProgress)-2))
+		}
+	}
+	
+	// Add technology context if we have space and no other content
+	if len(parts) == 0 && len(technologies) > 0 {
+		if len(technologies) <= 3 {
+			return "Technical work involving " + strings.Join(technologies, ", ")
+		} else {
+			return "Technical work involving " + strings.Join(technologies[:3], ", ") + " and more"
+		}
+	}
+	
+	// Combine parts into final summary
+	if len(parts) == 0 {
+		return "No significant activity to report"
+	}
+	
+	return strings.Join(parts, ". ")
+}
+
+// createFallbackProcessedData creates fallback processed data when enhanced processing fails
+func (e *EmbeddedLLM) createFallbackProcessedData(issues []jira.Issue, comments []jira.Comment, originalErr error) (*ProcessedData, error) {
+	if e.debugLogger != nil {
+		e.debugLogger.LogProcessingStep("fallback_processed_data", map[string]interface{}{
+			"issue_count":   len(issues),
+			"comment_count": len(comments),
+			"original_error": originalErr.Error(),
+		})
+		e.debugLogger.AddWarning("processing_failure", "Creating fallback processed data", originalErr.Error(), "medium")
+	}
+	
+	processedData := NewProcessedData()
+	
+	// Create basic enhanced issues without full processing
+	for _, issue := range issues {
+		enhancedIssue := EnhancedIssue{
+			Issue:             issue,
+			Comments:          []jira.Comment{},
+			ProcessedComments: []ProcessedComment{},
+			TechnicalContext:  &TechnicalContext{},
+			WorkSummary:       e.generateRuleBasedSummary(issue),
+			Priority:          50, // Default priority
+			WorkType:          "general",
+			CompletionStatus:  "unknown",
+			KeyActivities:     []string{},
+		}
+		
+		// Try to determine basic completion status from issue status
+		status := strings.ToLower(issue.Fields.Status.Name)
+		if strings.Contains(status, "done") || strings.Contains(status, "closed") {
+			enhancedIssue.CompletionStatus = "completed"
+		} else if strings.Contains(status, "progress") {
+			enhancedIssue.CompletionStatus = "in_progress"
+		}
+		
+		processedData.AddIssue(enhancedIssue)
+	}
+	
+	if e.debugLogger != nil {
+		e.debugLogger.LogStepCompletion("fallback_processed_data", processedData, nil)
+	}
+	
+	return processedData, nil
+}
+
+// enhanceWithTechnicalPatterns enhances processed data with technical pattern matching
+func (e *EmbeddedLLM) enhanceWithTechnicalPatterns(processedData *ProcessedData, patternMatcher *TechnicalPatternMatcher) error {
+	if e.debugLogger != nil {
+		e.debugLogger.LogProcessingStep("technical_pattern_enhancement", map[string]interface{}{
+			"issue_count": len(processedData.Issues),
+		})
+	}
+	
+	for i, issue := range processedData.Issues {
+		// Analyze issue text for technical patterns
+		issueText := issue.Issue.Fields.Summary + " " + issue.Issue.Fields.Description.Text
+		
+		// Match patterns in issue text
+		if patterns, err := patternMatcher.MatchAllPatterns(issueText); err == nil {
+			// Extract infrastructure patterns
+			if infraPatterns, ok := patterns["infrastructure"].([]InfrastructurePattern); ok && len(infraPatterns) > 0 {
+				for _, pattern := range infraPatterns {
+					processedData.TechnicalContext.Infrastructure = append(
+						processedData.TechnicalContext.Infrastructure,
+						InfrastructureWork{
+							Type:        pattern.Type,
+							Action:      pattern.Action,
+							Component:   pattern.Component,
+							Status:      pattern.Status,
+							Description: pattern.Context,
+							Timestamp:   pattern.Timestamp,
+						},
+					)
+				}
+			}
+			
+			// Extract deployment patterns
+			if deployPatterns, ok := patterns["deployment"].([]DeploymentPattern); ok && len(deployPatterns) > 0 {
+				for _, pattern := range deployPatterns {
+					processedData.TechnicalContext.Deployments = append(
+						processedData.TechnicalContext.Deployments,
+						DeploymentActivity{
+							Type:        pattern.Type,
+							Environment: pattern.Environment,
+							Status:      pattern.Status,
+							Component:   pattern.Component,
+							Description: pattern.Context,
+							Timestamp:   pattern.Timestamp,
+						},
+					)
+				}
+			}
+		}
+		
+		// Analyze comments for technical patterns
+		for _, comment := range issue.ProcessedComments {
+			if commentPatterns, err := patternMatcher.MatchAllPatterns(comment.Original.Body.Text); err == nil {
+				// Log pattern matches for debugging
+				if e.debugLogger != nil {
+					// Create simplified pattern matches for logging
+					var patternMatches []PatternMatch
+					if totalMatches, ok := commentPatterns["total_matches"].(int); ok && totalMatches > 0 {
+						// Create a representative pattern match for logging
+						patternMatches = append(patternMatches, PatternMatch{
+							Pattern: &PatternDefinition{
+								Name: "Technical Pattern",
+								Category: "general",
+							},
+							Text: comment.Original.Body.Text,
+							Confidence: 0.8, // Default confidence
+							Context: e.shortenText(comment.Original.Body.Text, 100),
+							Timestamp: comment.Original.Created.Time,
+						})
+					}
+					e.debugLogger.LogPatternMatches(patternMatches)
+				}
+			}
+		}
+		
+		processedData.Issues[i] = issue
+	}
+	
+	if e.debugLogger != nil {
+		e.debugLogger.LogStepCompletion("technical_pattern_enhancement", "Enhanced with technical patterns", nil)
+	}
+	
+	return nil
+}
+
+// extractActivitiesFromText extracts activities from text for basic processing
+func (e *EmbeddedLLM) extractActivitiesFromText(text string) []string {
+	return e.extractActionsFromText(text)
+}
+
+// extractTopicsFromText extracts topics from text for basic processing
+func (e *EmbeddedLLM) extractTopicsFromText(text string) []string {
+	return e.extractTechnicalTermsFromText(text)
+}
+
+// extractTopics extracts topics from comment text (alias for compatibility)
+func (e *EmbeddedLLM) extractTopics(text string) []string {
+	return e.extractKeyTopicsFromText(text)
+}
+
+// buildSummaryFromActivities builds a summary from activities and topics
+func (e *EmbeddedLLM) buildSummaryFromActivities(activities, topics []string, issueCount, worklogCount int) (string, error) {
+	// Remove duplicates
+	activities = e.removeDuplicateStrings(activities)
+	topics = e.removeDuplicateStrings(topics)
+	
+	var parts []string
+	
+	// Add activity summary
+	if len(activities) > 0 {
+		if len(activities) == 1 {
+			parts = append(parts, activities[0])
+		} else if len(activities) <= 3 {
+			parts = append(parts, strings.Join(activities, ", "))
+		} else {
+			parts = append(parts, strings.Join(activities[:3], ", ")+" and more")
+		}
+	}
+	
+	// Add topic context if we have space
+	if len(parts) == 0 && len(topics) > 0 {
+		if len(topics) <= 3 {
+			parts = append(parts, "Work on "+strings.Join(topics, ", "))
+		} else {
+			parts = append(parts, "Work on "+strings.Join(topics[:3], ", ")+" and more")
+		}
+	}
+	
+	// Fallback to basic counts
+	if len(parts) == 0 {
+		if issueCount > 0 && worklogCount > 0 {
+			return fmt.Sprintf("Activity on %d issues with %d work entries", issueCount, worklogCount), nil
+		} else if issueCount > 0 {
+			return fmt.Sprintf("Activity on %d issues", issueCount), nil
+		} else if worklogCount > 0 {
+			return fmt.Sprintf("%d work log entries", worklogCount), nil
+		}
+		return "No significant activity", nil
+	}
+	
+	return strings.Join(parts, "; "), nil
 }
