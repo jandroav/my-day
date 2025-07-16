@@ -331,7 +331,7 @@ func (d *DebugLogger) PrintDebugSummary() {
 		}
 	}
 	
-	fmt.Println("=====================================\n")
+	fmt.Println("=====================================")
 }
 
 // Close closes the debug logger and any open files

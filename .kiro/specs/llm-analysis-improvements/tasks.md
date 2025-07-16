@@ -78,26 +78,26 @@
   - _Requirements: 4.3, 4.4_
 
 - [ ] 8. Improve Ollama integration for better prompts
-  - [-] 8.1 Enhance Ollama prompt generation
+  - [x] 8.1 Enhance Ollama prompt generation
     - Improve buildStandupPrompt to include more context
     - Add structured prompts for better technical term recognition
     - Implement prompt templates for different summary styles
     - _Requirements: 1.1, 1.3, 2.1_
 
-  - [ ] 8.2 Add Ollama-specific error handling
+  - [x] 8.2 Add Ollama-specific error handling
     - Implement timeout and retry logic for Ollama API calls
     - Add fallback to embedded LLM when Ollama is unavailable
     - Create better error messages for Ollama connectivity issues
     - _Requirements: 4.4, 5.2_
 
 - [ ] 9. Create comprehensive test suite
-  - [ ] 9.1 Add unit tests for enhanced LLM methods
+  - [x] 9.1 Add unit tests for enhanced LLM methods
     - Test technical pattern matching with known DevOps terms
     - Test comment summarization with various input types
     - Test fallback behavior with edge cases
     - _Requirements: 1.4, 5.1, 5.4_
 
-  - [ ] 9.2 Add integration tests with sample data
+  - [x] 9.2 Add integration tests with sample data
     - Create test data with realistic DevOps Jira comments
     - Test full LLM pipeline with multiple tickets and comments
     - Validate summary quality and accuracy
