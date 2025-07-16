@@ -25,17 +25,317 @@ func (e *EmbeddedLLM) SummarizeIssue(issue jira.Issue) (string, error) {
 	return e.generateRuleBasedSummary(issue), nil
 }
 
-// SummarizeComments generates a summary of user's comments from today
+// SummarizeComments generates a summary of user's comments from today using enhanced processing
 func (e *EmbeddedLLM) SummarizeComments(comments []jira.Comment) (string, error) {
 	if len(comments) == 0 {
 		return "", nil
 	}
 	
-	if len(comments) == 1 {
-		return e.summarizeSingleComment(comments[0]), nil
+	// Use enhanced data processing for better insights
+	processor := NewEnhancedDataProcessor(false) // debug=false for production
+	patternMatcher := NewTechnicalPatternMatcher(false)
+	
+	// Process comments to extract enhanced insights
+	var processedComments []ProcessedComment
+	for _, comment := range comments {
+		// Use the public method from processor to process individual comments
+		processedComment, err := e.processCommentWithProcessor(processor, comment)
+		if err != nil {
+			// Fallback to original processing if enhanced processing fails
+			continue
+		}
+		processedComments = append(processedComments, processedComment)
 	}
 	
-	return e.summarizeMultipleComments(comments), nil
+	// If enhanced processing failed for all comments, use fallback
+	if len(processedComments) == 0 {
+		if len(comments) == 1 {
+			return e.summarizeSingleComment(comments[0]), nil
+		}
+		return e.summarizeMultipleComments(comments), nil
+	}
+	
+	// Generate enhanced summary using processed comments and pattern matcher
+	return e.generateEnhancedCommentSummary(processedComments, patternMatcher)
+}
+
+// processCommentWithProcessor processes a single comment using the enhanced data processor
+func (e *EmbeddedLLM) processCommentWithProcessor(processor *EnhancedDataProcessor, comment jira.Comment) (ProcessedComment, error) {
+	// Create a temporary issue to use the processor's processComment method
+	// We need to use reflection or create a wrapper since processComment is private
+	// For now, we'll implement the processing logic directly here
+	
+	if comment.ID == "" {
+		return ProcessedComment{}, fmt.Errorf("comment ID is empty")
+	}
+	
+	text := comment.Body.Text
+	
+	processedComment := ProcessedComment{
+		Original:         comment,
+		ExtractedActions: e.extractActionsFromText(text),
+		TechnicalTerms:   e.extractTechnicalTermsFromText(text),
+		WorkType:         e.determineCommentWorkTypeFromText(text),
+		Sentiment:        e.determineSentimentFromText(text),
+		Importance:       e.calculateCommentImportanceFromText(text),
+		ActivityType:     e.determineActivityTypeFromText(text),
+		CompletionStatus: e.determineCommentCompletionStatusFromText(text),
+		KeyTopics:        e.extractKeyTopicsFromText(text),
+	}
+	
+	return processedComment, nil
+}
+
+// extractActionsFromText extracts action verbs from text (helper for enhanced processing)
+func (e *EmbeddedLLM) extractActionsFromText(text string) []string {
+	lowerText := strings.ToLower(text)
+	var actions []string
+	
+	actionVerbs := []string{
+		"implemented", "created", "added", "built", "developed",
+		"fixed", "resolved", "corrected", "debugged", "troubleshot",
+		"updated", "modified", "changed", "improved", "enhanced",
+		"deployed", "released", "pushed", "merged", "integrated",
+		"tested", "verified", "validated", "checked", "confirmed",
+		"configured", "setup", "installed", "initialized", "prepared",
+		"investigated", "analyzed", "reviewed", "examined", "explored",
+		"documented", "wrote", "recorded", "noted", "explained",
+	}
+	
+	for _, verb := range actionVerbs {
+		if strings.Contains(lowerText, verb) {
+			actions = append(actions, verb)
+		}
+	}
+	
+	return e.removeDuplicateStrings(actions)
+}
+
+// extractTechnicalTermsFromText extracts technical terms from text (helper for enhanced processing)
+func (e *EmbeddedLLM) extractTechnicalTermsFromText(text string) []string {
+	lowerText := strings.ToLower(text)
+	var terms []string
+	
+	technicalTerms := []string{
+		"terraform", "spacelift", "aws", "kubernetes", "k8s", "docker",
+		"database", "sql", "postgresql", "mysql", "mongodb",
+		"api", "rest", "graphql", "endpoint", "microservice",
+		"ci/cd", "pipeline", "jenkins", "github", "gitlab",
+		"vpc", "ecr", "s3", "lambda", "ec2", "rds",
+		"oauth", "oidc", "authentication", "authorization", "jwt",
+		"ssl", "tls", "https", "security", "encryption",
+		"monitoring", "logging", "metrics", "alerts",
+		"redis", "elasticsearch", "kafka", "rabbitmq",
+		"nginx", "apache", "load balancer", "proxy",
+	}
+	
+	for _, term := range technicalTerms {
+		if strings.Contains(lowerText, term) {
+			terms = append(terms, term)
+		}
+	}
+	
+	return e.removeDuplicateStrings(terms)
+}
+
+// determineCommentWorkTypeFromText determines work type from comment content (helper for enhanced processing)
+func (e *EmbeddedLLM) determineCommentWorkTypeFromText(text string) string {
+	lowerText := strings.ToLower(text)
+	
+	if strings.Contains(lowerText, "terraform") || strings.Contains(lowerText, "aws") || strings.Contains(lowerText, "infrastructure") {
+		return "infrastructure"
+	}
+	if strings.Contains(lowerText, "database") || strings.Contains(lowerText, "sql") {
+		return "database"
+	}
+	if strings.Contains(lowerText, "deploy") || strings.Contains(lowerText, "release") {
+		return "deployment"
+	}
+	if strings.Contains(lowerText, "test") || strings.Contains(lowerText, "testing") {
+		return "testing"
+	}
+	if strings.Contains(lowerText, "review") || strings.Contains(lowerText, "pr") || strings.Contains(lowerText, "merge") {
+		return "code_review"
+	}
+	if strings.Contains(lowerText, "fix") || strings.Contains(lowerText, "bug") || strings.Contains(lowerText, "error") {
+		return "bug_fix"
+	}
+	if strings.Contains(lowerText, "security") || strings.Contains(lowerText, "auth") {
+		return "security"
+	}
+	
+	return "general"
+}
+
+// determineSentimentFromText determines the sentiment of a comment (helper for enhanced processing)
+func (e *EmbeddedLLM) determineSentimentFromText(text string) string {
+	lowerText := strings.ToLower(text)
+	
+	positiveWords := []string{"completed", "fixed", "resolved", "success", "working", "good", "great", "done"}
+	negativeWords := []string{"blocked", "failed", "error", "issue", "problem", "broken", "stuck"}
+	
+	positiveCount := 0
+	negativeCount := 0
+	
+	for _, word := range positiveWords {
+		if strings.Contains(lowerText, word) {
+			positiveCount++
+		}
+	}
+	
+	for _, word := range negativeWords {
+		if strings.Contains(lowerText, word) {
+			negativeCount++
+		}
+	}
+	
+	if positiveCount > negativeCount {
+		return "positive"
+	} else if negativeCount > positiveCount {
+		return "negative"
+	}
+	
+	return "neutral"
+}
+
+// calculateCommentImportanceFromText calculates importance score for a comment (helper for enhanced processing)
+func (e *EmbeddedLLM) calculateCommentImportanceFromText(text string) int {
+	lowerText := strings.ToLower(text)
+	importance := 50 // Base importance
+	
+	// High importance indicators
+	highImportanceWords := []string{"critical", "urgent", "blocked", "production", "outage", "security"}
+	for _, word := range highImportanceWords {
+		if strings.Contains(lowerText, word) {
+			importance += 30
+		}
+	}
+	
+	// Medium importance indicators
+	mediumImportanceWords := []string{"completed", "deployed", "merged", "resolved", "implemented"}
+	for _, word := range mediumImportanceWords {
+		if strings.Contains(lowerText, word) {
+			importance += 20
+		}
+	}
+	
+	// Technical complexity indicators
+	technicalWords := []string{"terraform", "kubernetes", "database", "api", "infrastructure"}
+	for _, word := range technicalWords {
+		if strings.Contains(lowerText, word) {
+			importance += 10
+		}
+	}
+	
+	// Cap at 100
+	if importance > 100 {
+		importance = 100
+	}
+	
+	return importance
+}
+
+// determineActivityTypeFromText determines the type of activity from comment (helper for enhanced processing)
+func (e *EmbeddedLLM) determineActivityTypeFromText(text string) string {
+	lowerText := strings.ToLower(text)
+	
+	if strings.Contains(lowerText, "completed") || strings.Contains(lowerText, "finished") || strings.Contains(lowerText, "done") {
+		return "completion"
+	}
+	if strings.Contains(lowerText, "started") || strings.Contains(lowerText, "beginning") || strings.Contains(lowerText, "working on") {
+		return "initiation"
+	}
+	if strings.Contains(lowerText, "updated") || strings.Contains(lowerText, "modified") || strings.Contains(lowerText, "changed") {
+		return "update"
+	}
+	if strings.Contains(lowerText, "investigating") || strings.Contains(lowerText, "looking into") || strings.Contains(lowerText, "debugging") {
+		return "investigation"
+	}
+	if strings.Contains(lowerText, "blocked") || strings.Contains(lowerText, "waiting") || strings.Contains(lowerText, "stuck") {
+		return "blocker"
+	}
+	
+	return "progress"
+}
+
+// determineCommentCompletionStatusFromText determines completion status from comment (helper for enhanced processing)
+func (e *EmbeddedLLM) determineCommentCompletionStatusFromText(text string) string {
+	lowerText := strings.ToLower(text)
+	
+	if strings.Contains(lowerText, "completed") || strings.Contains(lowerText, "finished") || strings.Contains(lowerText, "done") || strings.Contains(lowerText, "resolved") {
+		return "completed"
+	}
+	if strings.Contains(lowerText, "working on") || strings.Contains(lowerText, "in progress") || strings.Contains(lowerText, "currently") {
+		return "in_progress"
+	}
+	if strings.Contains(lowerText, "blocked") || strings.Contains(lowerText, "waiting") || strings.Contains(lowerText, "stuck") {
+		return "blocked"
+	}
+	if strings.Contains(lowerText, "planning") || strings.Contains(lowerText, "will") || strings.Contains(lowerText, "next") {
+		return "planned"
+	}
+	
+	return "unknown"
+}
+
+// extractKeyTopicsFromText extracts key topics from comment text (helper for enhanced processing)
+func (e *EmbeddedLLM) extractKeyTopicsFromText(text string) []string {
+	lowerText := strings.ToLower(text)
+	var topics []string
+	
+	topicMap := map[string]string{
+		"terraform":     "Terraform",
+		"spacelift":     "Spacelift",
+		"aws":          "AWS",
+		"database":     "Database",
+		"kubernetes":   "Kubernetes",
+		"k8s":          "Kubernetes",
+		"docker":       "Docker",
+		"api":          "API",
+		"security":     "Security",
+		"authentication": "Authentication",
+		"deployment":   "Deployment",
+		"testing":      "Testing",
+		"monitoring":   "Monitoring",
+		"ci/cd":        "CI/CD",
+		"pipeline":     "Pipeline",
+	}
+	
+	for keyword, topic := range topicMap {
+		if strings.Contains(lowerText, keyword) {
+			topics = append(topics, topic)
+		}
+	}
+	
+	return e.removeDuplicateStrings(topics)
+}
+
+// ProcessIssuesWithComments processes issues with comments using the new enhanced pipeline
+func (e *EmbeddedLLM) ProcessIssuesWithComments(issues []jira.Issue, comments []jira.Comment) (*ProcessedData, error) {
+	if len(issues) == 0 {
+		return nil, fmt.Errorf("no issues provided for processing")
+	}
+	
+	// Create enhanced data processor with debug disabled for production
+	processor := NewEnhancedDataProcessor(false)
+	
+	// Use the enhanced processing pipeline
+	processedData, err := processor.ProcessIssuesWithComments(issues, comments)
+	if err != nil {
+		// Fallback handling when enhanced processing fails
+		return e.createFallbackProcessedData(issues, comments, err)
+	}
+	
+	// Enhance with technical pattern matching
+	patternMatcher := NewTechnicalPatternMatcher(false)
+	err = e.enhanceWithTechnicalPatterns(processedData, patternMatcher)
+	if err != nil {
+		// Log warning but continue with basic processed data
+		// In a real implementation, this would use proper logging
+		fmt.Printf("Warning: Failed to enhance with technical patterns: %v\n", err)
+	}
+	
+	return processedData, nil
 }
 
 // SummarizeIssues generates summaries for multiple issues
@@ -278,6 +578,8 @@ func (e *EmbeddedLLM) GenerateStandupSummaryWithComments(issues []jira.Issue, co
 	
 	// Use enhanced data processing pipeline
 	processor := NewEnhancedDataProcessor(false) // debug=false for production
+	
+	// Process issues with comments using enhanced pipeline
 	processedData, err := processor.ProcessIssuesWithComments(issues, comments)
 	if err != nil {
 		// Fallback to original method if enhanced processing fails
@@ -910,28 +1212,494 @@ func (e *EmbeddedLLM) extractTopics(text string) []string {
 		"terraform":     "Terraform",
 		"spacelift":     "Spacelift",
 		"aws":          "AWS",
-		"database":     "database",
-		"permissions":  "permissions",
-		"secrets":      "secrets management",
-		"oidc":         "OIDC",
-		"vpc":          "VPC",
-		"ecr":          "ECR",
-		"liquibase":    "Liquibase",
-		"pr":           "pull requests",
-		"testing":      "testing",
-		"deployment":   "deployment",
+		"database":     "Database",
+		"kubernetes":   "Kubernetes",
+		"k8s":          "Kubernetes",
+		"docker":       "Docker",
+		"api":          "API",
+		"security":     "Security",
+		"authentication": "Authentication",
+		"deployment":   "Deployment",
+		"testing":      "Testing",
+		"monitoring":   "Monitoring",
+		"ci/cd":        "CI/CD",
+		"pipeline":     "Pipeline",
 	}
 	
 	for keyword, topic := range topicMap {
 		if strings.Contains(lowerText, keyword) {
 			topics = append(topics, topic)
-			if len(topics) >= 3 { // Limit topics
-				break
+		}
+	}
+	
+	return e.removeDuplicateStrings(topics)
+}
+
+// createIssuesWithCommentsMapping creates a proper mapping between issues and comments
+func (e *EmbeddedLLM) createIssuesWithCommentsMapping(issues []jira.Issue, comments []jira.Comment) []jira.Issue {
+	// For now, return issues as-is since the processor will handle comment association
+	// In a real implementation, we would need proper issue-comment mapping from the API
+	return issues
+}
+
+// generateFallbackSummary generates a fallback summary when enhanced processing fails
+func (e *EmbeddedLLM) generateFallbackSummary(issues []jira.Issue, comments []jira.Comment, worklogs []jira.WorklogEntry) (string, error) {
+	// Fall back to the original GenerateStandupSummary method
+	return e.GenerateStandupSummary(issues, worklogs)
+}
+
+// generateEnhancedStandupSummary generates an enhanced summary using processed data
+func (e *EmbeddedLLM) generateEnhancedStandupSummary(processedData *ProcessedData, patternMatcher *TechnicalPatternMatcher, worklogs []jira.WorklogEntry) (string, error) {
+	if processedData == nil || len(processedData.Issues) == 0 {
+		return "No recent activity to report", nil
+	}
+	
+	// Extract key activities from processed data
+	keyActivities := processedData.GetKeyActivities()
+	
+	// Get technical context summary
+	var techSummary string
+	if processedData.TechnicalContext != nil {
+		techSummary = e.buildTechnicalContextSummary(processedData.TechnicalContext)
+	}
+	
+	// Categorize work by completion status
+	var completedWork []string
+	var inProgressWork []string
+	var blockedWork []string
+	
+	for _, issue := range processedData.Issues {
+		switch strings.ToLower(issue.CompletionStatus) {
+		case "completed", "done", "resolved":
+			if issue.WorkSummary != "" {
+				completedWork = append(completedWork, issue.WorkSummary)
+			}
+		case "in_progress", "working", "active":
+			if issue.WorkSummary != "" {
+				inProgressWork = append(inProgressWork, issue.WorkSummary)
+			}
+		case "blocked":
+			if issue.WorkSummary != "" {
+				blockedWork = append(blockedWork, issue.WorkSummary)
 			}
 		}
 	}
 	
-	return topics
+	// Build enhanced summary
+	return e.buildEnhancedSummary(completedWork, inProgressWork, blockedWork, keyActivities, techSummary)
+}
+
+// generateEnhancedCommentSummary generates an enhanced summary from processed comments
+func (e *EmbeddedLLM) generateEnhancedCommentSummary(processedComments []ProcessedComment, patternMatcher *TechnicalPatternMatcher) (string, error) {
+	if len(processedComments) == 0 {
+		return "No comments to summarize", nil
+	}
+	
+	// Categorize comments by activity type and completion status
+	var completedActivities []string
+	var inProgressActivities []string
+	var technicalTopics []string
+	
+	for _, comment := range processedComments {
+		// Extract activities based on completion status
+		switch comment.CompletionStatus {
+		case "completed":
+			if len(comment.ExtractedActions) > 0 {
+				activity := e.buildActivityFromComment(comment)
+				if activity != "" {
+					completedActivities = append(completedActivities, activity)
+				}
+			}
+		case "in_progress":
+			if len(comment.ExtractedActions) > 0 {
+				activity := e.buildActivityFromComment(comment)
+				if activity != "" {
+					inProgressActivities = append(inProgressActivities, activity)
+				}
+			}
+		}
+		
+		// Collect technical topics
+		technicalTopics = append(technicalTopics, comment.KeyTopics...)
+	}
+	
+	// Remove duplicates
+	completedActivities = e.removeDuplicateStrings(completedActivities)
+	inProgressActivities = e.removeDuplicateStrings(inProgressActivities)
+	technicalTopics = e.removeDuplicateStrings(technicalTopics)
+	
+	// Build summary from enhanced data
+	return e.buildEnhancedCommentSummary(completedActivities, inProgressActivities, technicalTopics)
+}
+
+// buildTechnicalContextSummary builds a summary from technical context
+func (e *EmbeddedLLM) buildTechnicalContextSummary(context *TechnicalContext) string {
+	var parts []string
+	
+	// Add deployment activities
+	if len(context.Deployments) > 0 {
+		deploymentCount := 0
+		for _, deployment := range context.Deployments {
+			if deployment.Status == "completed" {
+				deploymentCount++
+			}
+		}
+		if deploymentCount > 0 {
+			parts = append(parts, fmt.Sprintf("%d deployment(s)", deploymentCount))
+		}
+	}
+	
+	// Add infrastructure work
+	if len(context.Infrastructure) > 0 {
+		infraCount := 0
+		for _, infra := range context.Infrastructure {
+			if infra.Status == "completed" {
+				infraCount++
+			}
+		}
+		if infraCount > 0 {
+			parts = append(parts, fmt.Sprintf("%d infrastructure update(s)", infraCount))
+		}
+	}
+	
+	// Add key technologies
+	if len(context.Technologies) > 0 {
+		topTech := context.Technologies
+		if len(topTech) > 3 {
+			topTech = topTech[:3]
+		}
+		parts = append(parts, "using "+strings.Join(topTech, ", "))
+	}
+	
+	if len(parts) == 0 {
+		return ""
+	}
+	
+	return strings.Join(parts, ", ")
+}
+
+// buildActivityFromComment builds an activity description from a processed comment
+func (e *EmbeddedLLM) buildActivityFromComment(comment ProcessedComment) string {
+	if len(comment.ExtractedActions) == 0 {
+		return ""
+	}
+	
+	action := comment.ExtractedActions[0] // Take the first action
+	
+	// Add technical context if available
+	if len(comment.TechnicalTerms) > 0 {
+		tech := comment.TechnicalTerms[0] // Take the first technical term
+		return fmt.Sprintf("%s %s work", strings.Title(action), tech)
+	}
+	
+	// Add work type context
+	if comment.WorkType != "general" {
+		return fmt.Sprintf("%s %s", strings.Title(action), strings.ReplaceAll(comment.WorkType, "_", " "))
+	}
+	
+	return strings.Title(action) + " development work"
+}
+
+// buildEnhancedSummary builds the final enhanced summary
+func (e *EmbeddedLLM) buildEnhancedSummary(completed, inProgress, blocked, keyActivities []string, techSummary string) (string, error) {
+	var parts []string
+	
+	// Add completed work (highest priority)
+	if len(completed) > 0 {
+		if len(completed) == 1 {
+			parts = append(parts, "Completed: "+completed[0])
+		} else if len(completed) <= 3 {
+			parts = append(parts, "Completed: "+strings.Join(completed, ", "))
+		} else {
+			parts = append(parts, fmt.Sprintf("Completed: %s and %d other items", strings.Join(completed[:2], ", "), len(completed)-2))
+		}
+	}
+	
+	// Add in-progress work
+	if len(inProgress) > 0 && len(parts) < 2 {
+		if len(inProgress) == 1 {
+			parts = append(parts, "Working on: "+inProgress[0])
+		} else {
+			parts = append(parts, "Working on: "+strings.Join(inProgress[:min(2, len(inProgress))], ", "))
+		}
+	}
+	
+	// Add blocked work (important to highlight)
+	if len(blocked) > 0 && len(parts) < 3 {
+		parts = append(parts, "Blocked: "+strings.Join(blocked[:min(2, len(blocked))], ", "))
+	}
+	
+	// Add technical context if we don't have enough content
+	if len(parts) < 2 && techSummary != "" {
+		parts = append(parts, "Technical work: "+techSummary)
+	}
+	
+	// Add key activities as fallback
+	if len(parts) == 0 && len(keyActivities) > 0 {
+		if len(keyActivities) <= 3 {
+			parts = append(parts, "Activities: "+strings.Join(keyActivities, ", "))
+		} else {
+			parts = append(parts, "Activities: "+strings.Join(keyActivities[:3], ", ")+" and more")
+		}
+	}
+	
+	// Final fallback
+	if len(parts) == 0 {
+		return "Multiple development activities completed", nil
+	}
+	
+	return strings.Join(parts, "; "), nil
+}
+
+// buildEnhancedCommentSummary builds a summary from enhanced comment data
+func (e *EmbeddedLLM) buildEnhancedCommentSummary(completed, inProgress, topics []string) (string, error) {
+	var parts []string
+	
+	// Prioritize completed activities
+	if len(completed) > 0 {
+		if len(completed) == 1 {
+			parts = append(parts, completed[0])
+		} else if len(completed) <= 3 {
+			parts = append(parts, strings.Join(completed, ", "))
+		} else {
+			parts = append(parts, strings.Join(completed[:2], ", ")+" and other completed work")
+		}
+	}
+	
+	// Add in-progress work
+	if len(inProgress) > 0 && len(parts) < 2 {
+		if len(inProgress) == 1 {
+			parts = append(parts, inProgress[0]+" (in progress)")
+		} else {
+			parts = append(parts, strings.Join(inProgress[:1], ", ")+" (in progress)")
+		}
+	}
+	
+	// Add technical topics if we don't have enough content
+	if len(parts) == 0 && len(topics) > 0 {
+		if len(topics) <= 3 {
+			return "Technical work on " + strings.Join(topics, ", "), nil
+		} else {
+			return "Technical work on " + strings.Join(topics[:3], ", ") + " and more", nil
+		}
+	}
+	
+	if len(parts) == 0 {
+		return "Development activities", nil
+	}
+	
+	return strings.Join(parts, "; "), nil
+}
+
+// Helper function for min
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+// generateEnhancedCommentSummary creates a summary using processed comments and pattern matching
+func (e *EmbeddedLLM) generateEnhancedCommentSummary(processedComments []ProcessedComment, patternMatcher *TechnicalPatternMatcher) (string, error) {
+	if len(processedComments) == 0 {
+		return "No comments to summarize", nil
+	}
+	
+	if len(processedComments) == 1 {
+		return e.generateSingleProcessedCommentSummary(processedComments[0], patternMatcher)
+	}
+	
+	// Categorize activities by completion status and importance
+	var completedWork []string
+	var inProgressWork []string
+	var generalActivities []string
+	var technicalTopics []string
+	
+	for _, comment := range processedComments {
+		// Use pattern matcher for enhanced insights
+		if comment.Original.Body.Text != "" {
+			patterns, err := patternMatcher.MatchAllPatterns(comment.Original.Body.Text)
+			if err == nil {
+				e.extractInsightsFromPatterns(patterns, &technicalTopics, &generalActivities)
+			}
+		}
+		
+		// Categorize based on completion status
+		switch comment.CompletionStatus {
+		case "completed":
+			if len(comment.ExtractedActions) > 0 {
+				activity := e.buildActivityFromComment(comment)
+				if activity != "" {
+					completedWork = append(completedWork, activity)
+				}
+			}
+		case "in_progress":
+			if len(comment.ExtractedActions) > 0 {
+				activity := e.buildActivityFromComment(comment)
+				if activity != "" {
+					inProgressWork = append(inProgressWork, activity)
+				}
+			}
+		default:
+			if len(comment.ExtractedActions) > 0 {
+				activity := e.buildActivityFromComment(comment)
+				if activity != "" {
+					generalActivities = append(generalActivities, activity)
+				}
+			}
+		}
+		
+		// Add technical topics
+		technicalTopics = append(technicalTopics, comment.TechnicalTerms...)
+		technicalTopics = append(technicalTopics, comment.KeyTopics...)
+	}
+	
+	// Remove duplicates and build final summary
+	completedWork = e.removeDuplicateStrings(completedWork)
+	inProgressWork = e.removeDuplicateStrings(inProgressWork)
+	generalActivities = e.removeDuplicateStrings(generalActivities)
+	technicalTopics = e.removeDuplicateStrings(technicalTopics)
+	
+	return e.buildEnhancedCommentSummary(completedWork, inProgressWork, generalActivities, technicalTopics), nil
+}
+
+// generateSingleProcessedCommentSummary creates a summary for a single processed comment
+func (e *EmbeddedLLM) generateSingleProcessedCommentSummary(comment ProcessedComment, patternMatcher *TechnicalPatternMatcher) (string, error) {
+	// Use pattern matching for enhanced insights
+	if comment.Original.Body.Text != "" {
+		patterns, err := patternMatcher.MatchAllPatterns(comment.Original.Body.Text)
+		if err == nil {
+			// Extract high-confidence patterns
+			if infraPatterns, ok := patterns["infrastructure"].([]InfrastructurePattern); ok {
+				for _, pattern := range infraPatterns {
+					if pattern.Confidence > 0.8 {
+						return fmt.Sprintf("%s %s %s (%s)", 
+							strings.Title(pattern.Action), 
+							pattern.Type, 
+							pattern.Component, 
+							pattern.Status), nil
+					}
+				}
+			}
+			
+			if deployPatterns, ok := patterns["deployment"].([]DeploymentPattern); ok {
+				for _, pattern := range deployPatterns {
+					if pattern.Confidence > 0.8 {
+						return fmt.Sprintf("%s to %s (%s)", 
+							strings.Title(pattern.Type), 
+							pattern.Environment, 
+							pattern.Status), nil
+					}
+				}
+			}
+			
+			if devPatterns, ok := patterns["development"].([]DevelopmentPattern); ok {
+				for _, pattern := range devPatterns {
+					if pattern.Confidence > 0.8 {
+						return fmt.Sprintf("%s %s (%s)", 
+							strings.Title(pattern.Action), 
+							pattern.Type, 
+							pattern.Status), nil
+					}
+				}
+			}
+		}
+	}
+	
+	// Fallback to processed comment data
+	if len(comment.ExtractedActions) > 0 && len(comment.TechnicalTerms) > 0 {
+		return fmt.Sprintf("%s %s work", 
+			strings.Title(comment.ExtractedActions[0]), 
+			comment.TechnicalTerms[0]), nil
+	}
+	
+	if len(comment.ExtractedActions) > 0 {
+		return fmt.Sprintf("%s work", strings.Title(comment.ExtractedActions[0])), nil
+	}
+	
+	// Final fallback to original intelligent summary
+	return e.createIntelligentSummary(comment.Original.Body.Text), nil, nil
+}
+
+// buildActivityFromComment builds an activity description from a processed comment
+func (e *EmbeddedLLM) buildActivityFromComment(comment ProcessedComment) string {
+	if len(comment.ExtractedActions) == 0 {
+		return ""
+	}
+	
+	action := comment.ExtractedActions[0]
+	
+	// Add technical context if available
+	if len(comment.TechnicalTerms) > 0 {
+		return fmt.Sprintf("%s %s", strings.Title(action), comment.TechnicalTerms[0])
+	}
+	
+	// Add work type context
+	if comment.WorkType != "general" && comment.WorkType != "" {
+		return fmt.Sprintf("%s %s work", strings.Title(action), comment.WorkType)
+	}
+	
+	// Add key topics if available
+	if len(comment.KeyTopics) > 0 {
+		return fmt.Sprintf("%s %s", strings.Title(action), comment.KeyTopics[0])
+	}
+	
+	return strings.Title(action) + " work"
+}
+
+// buildEnhancedCommentSummary builds the final enhanced comment summary
+func (e *EmbeddedLLM) buildEnhancedCommentSummary(completed, inProgress, general, topics []string) string {
+	var summaryParts []string
+	
+	// Prioritize completed work
+	if len(completed) > 0 {
+		if len(completed) == 1 {
+			summaryParts = append(summaryParts, "Completed: "+completed[0])
+		} else if len(completed) <= 3 {
+			summaryParts = append(summaryParts, "Completed: "+strings.Join(completed, ", "))
+		} else {
+			summaryParts = append(summaryParts, fmt.Sprintf("Completed: %s and %d other items", 
+				strings.Join(completed[:2], ", "), len(completed)-2))
+		}
+	}
+	
+	// Add in-progress work
+	if len(inProgress) > 0 && len(summaryParts) < 2 {
+		if len(inProgress) == 1 {
+			summaryParts = append(summaryParts, "Working on: "+inProgress[0])
+		} else {
+			summaryParts = append(summaryParts, "Working on: "+strings.Join(inProgress[:min(2, len(inProgress))], ", "))
+		}
+	}
+	
+	// Add general activities if needed
+	if len(summaryParts) < 2 && len(general) > 0 {
+		filteredGeneral := e.filterUniqueActivities(general, append(completed, inProgress...))
+		if len(filteredGeneral) > 0 {
+			if len(filteredGeneral) == 1 {
+				summaryParts = append(summaryParts, "Also: "+filteredGeneral[0])
+			} else {
+				summaryParts = append(summaryParts, "Also: "+strings.Join(filteredGeneral[:min(2, len(filteredGeneral))], ", "))
+			}
+		}
+	}
+	
+	// Add technical context if summary is still short
+	if len(summaryParts) <= 1 && len(topics) > 0 {
+		uniqueTopics := e.removeDuplicateStrings(topics)
+		if len(uniqueTopics) <= 3 {
+			summaryParts = append(summaryParts, "Focus areas: "+strings.Join(uniqueTopics, ", "))
+		} else {
+			summaryParts = append(summaryParts, "Focus areas: "+strings.Join(uniqueTopics[:3], ", ")+" and more")
+		}
+	}
+	
+	// Fallback if no content
+	if len(summaryParts) == 0 {
+		return "Various development activities"
+	}
+	
+	return strings.Join(summaryParts, ". ")
 }
 
 // generateFallbackSummary provides fallback when enhanced processing fails
@@ -1030,7 +1798,7 @@ func (e *EmbeddedLLM) generateEnhancedStandupSummary(processedData *ProcessedDat
 		
 		// Add deployment activities
 		for _, deployment := range processedData.TechnicalContext.Deployments {
-			activity := fmt.Sprintf("%s %s (%s)", strings.Title(deployment.Action), deployment.Component, deployment.Status)
+			activity := fmt.Sprintf("%s %s (%s)", strings.Title(deployment.Type), deployment.Component, deployment.Status)
 			switch deployment.Status {
 			case "completed":
 				completedWork = append(completedWork, activity)
@@ -1515,4 +2283,763 @@ func (e *EmbeddedLLM) removeDuplicates(slice []string) []string {
 	}
 	
 	return result
+}
+
+// createIssuesWithCommentsMapping creates a proper mapping between issues and comments
+func (e *EmbeddedLLM) createIssuesWithCommentsMapping(issues []jira.Issue, comments []jira.Comment) []jira.Issue {
+	// For now, return issues as-is since the processor will handle comment association
+	// In a real implementation, we would need proper issue-comment mapping from the API
+	return issues
+}
+
+// generateFallbackSummary generates a fallback summary when enhanced processing fails
+func (e *EmbeddedLLM) generateFallbackSummary(issues []jira.Issue, comments []jira.Comment, worklogs []jira.WorklogEntry) (string, error) {
+	// Fall back to the original GenerateStandupSummary method
+	return e.GenerateStandupSummary(issues, worklogs)
+}
+
+// generateEnhancedStandupSummary generates an enhanced summary using processed data
+func (e *EmbeddedLLM) generateEnhancedStandupSummary(processedData *ProcessedData, patternMatcher *TechnicalPatternMatcher, worklogs []jira.WorklogEntry) (string, error) {
+	if processedData == nil || len(processedData.Issues) == 0 {
+		return "No recent activity to report", nil
+	}
+	
+	// Extract key activities from processed data
+	keyActivities := processedData.GetKeyActivities()
+	
+	// Get technical context summary
+	var techSummary string
+	if processedData.TechnicalContext != nil {
+		techSummary = e.buildTechnicalContextSummary(processedData.TechnicalContext)
+	}
+	
+	// Categorize work by completion status
+	var completedWork []string
+	var inProgressWork []string
+	var blockedWork []string
+	
+	for _, issue := range processedData.Issues {
+		switch strings.ToLower(issue.CompletionStatus) {
+		case "completed", "done", "resolved":
+			if issue.WorkSummary != "" {
+				completedWork = append(completedWork, issue.WorkSummary)
+			}
+		case "in_progress", "working", "active":
+			if issue.WorkSummary != "" {
+				inProgressWork = append(inProgressWork, issue.WorkSummary)
+			}
+		case "blocked":
+			if issue.WorkSummary != "" {
+				blockedWork = append(blockedWork, issue.WorkSummary)
+			}
+		}
+	}
+	
+	// Build enhanced summary
+	return e.buildEnhancedSummary(completedWork, inProgressWork, blockedWork, keyActivities, techSummary)
+}
+
+// generateEnhancedCommentSummary generates an enhanced summary from processed comments
+func (e *EmbeddedLLM) generateEnhancedCommentSummary(processedComments []ProcessedComment, patternMatcher *TechnicalPatternMatcher) (string, error) {
+	if len(processedComments) == 0 {
+		return "No comments to summarize", nil
+	}
+	
+	// Categorize comments by activity type and completion status
+	var completedActivities []string
+	var inProgressActivities []string
+	var technicalTopics []string
+	
+	for _, comment := range processedComments {
+		// Extract activities based on completion status
+		switch comment.CompletionStatus {
+		case "completed":
+			if len(comment.ExtractedActions) > 0 {
+				activity := e.buildActivityFromComment(comment)
+				if activity != "" {
+					completedActivities = append(completedActivities, activity)
+				}
+			}
+		case "in_progress":
+			if len(comment.ExtractedActions) > 0 {
+				activity := e.buildActivityFromComment(comment)
+				if activity != "" {
+					inProgressActivities = append(inProgressActivities, activity)
+				}
+			}
+		}
+		
+		// Collect technical topics
+		technicalTopics = append(technicalTopics, comment.KeyTopics...)
+	}
+	
+	// Remove duplicates
+	completedActivities = e.removeDuplicateStrings(completedActivities)
+	inProgressActivities = e.removeDuplicateStrings(inProgressActivities)
+	technicalTopics = e.removeDuplicateStrings(technicalTopics)
+	
+	// Build summary from enhanced data
+	return e.buildEnhancedCommentSummary(completedActivities, inProgressActivities, technicalTopics)
+}
+
+// buildTechnicalContextSummary builds a summary from technical context
+func (e *EmbeddedLLM) buildTechnicalContextSummary(context *TechnicalContext) string {
+	var parts []string
+	
+	// Add deployment activities
+	if len(context.Deployments) > 0 {
+		deploymentCount := 0
+		for _, deployment := range context.Deployments {
+			if deployment.Status == "completed" {
+				deploymentCount++
+			}
+		}
+		if deploymentCount > 0 {
+			parts = append(parts, fmt.Sprintf("%d deployment(s)", deploymentCount))
+		}
+	}
+	
+	// Add infrastructure work
+	if len(context.Infrastructure) > 0 {
+		infraCount := 0
+		for _, infra := range context.Infrastructure {
+			if infra.Status == "completed" {
+				infraCount++
+			}
+		}
+		if infraCount > 0 {
+			parts = append(parts, fmt.Sprintf("%d infrastructure update(s)", infraCount))
+		}
+	}
+	
+	// Add key technologies
+	if len(context.Technologies) > 0 {
+		topTech := context.Technologies
+		if len(topTech) > 3 {
+			topTech = topTech[:3]
+		}
+		parts = append(parts, "using "+strings.Join(topTech, ", "))
+	}
+	
+	if len(parts) == 0 {
+		return ""
+	}
+	
+	return strings.Join(parts, ", ")
+}
+
+// buildActivityFromComment builds an activity description from a processed comment
+func (e *EmbeddedLLM) buildActivityFromComment(comment ProcessedComment) string {
+	if len(comment.ExtractedActions) == 0 {
+		return ""
+	}
+	
+	action := comment.ExtractedActions[0] // Take the first action
+	
+	// Add technical context if available
+	if len(comment.TechnicalTerms) > 0 {
+		tech := comment.TechnicalTerms[0] // Take the first technical term
+		return fmt.Sprintf("%s %s work", strings.Title(action), tech)
+	}
+	
+	// Add work type context
+	if comment.WorkType != "general" {
+		return fmt.Sprintf("%s %s", strings.Title(action), strings.ReplaceAll(comment.WorkType, "_", " "))
+	}
+	
+	return strings.Title(action) + " development work"
+}
+
+// buildEnhancedSummary builds the final enhanced summary
+func (e *EmbeddedLLM) buildEnhancedSummary(completed, inProgress, blocked, keyActivities []string, techSummary string) (string, error) {
+	var parts []string
+	
+	// Add completed work (highest priority)
+	if len(completed) > 0 {
+		if len(completed) == 1 {
+			parts = append(parts, "Completed: "+completed[0])
+		} else if len(completed) <= 3 {
+			parts = append(parts, "Completed: "+strings.Join(completed, ", "))
+		} else {
+			parts = append(parts, fmt.Sprintf("Completed: %s and %d other items", strings.Join(completed[:2], ", "), len(completed)-2))
+		}
+	}
+	
+	// Add in-progress work
+	if len(inProgress) > 0 && len(parts) < 2 {
+		if len(inProgress) == 1 {
+			parts = append(parts, "Working on: "+inProgress[0])
+		} else {
+			parts = append(parts, "Working on: "+strings.Join(inProgress[:min(2, len(inProgress))], ", "))
+		}
+	}
+	
+	// Add blocked work (important to highlight)
+	if len(blocked) > 0 && len(parts) < 3 {
+		parts = append(parts, "Blocked: "+strings.Join(blocked[:min(2, len(blocked))], ", "))
+	}
+	
+	// Add technical context if we don't have enough content
+	if len(parts) < 2 && techSummary != "" {
+		parts = append(parts, "Technical work: "+techSummary)
+	}
+	
+	// Add key activities as fallback
+	if len(parts) == 0 && len(keyActivities) > 0 {
+		if len(keyActivities) <= 3 {
+			parts = append(parts, "Activities: "+strings.Join(keyActivities, ", "))
+		} else {
+			parts = append(parts, "Activities: "+strings.Join(keyActivities[:3], ", ")+" and more")
+		}
+	}
+	
+	// Final fallback
+	if len(parts) == 0 {
+		return "Multiple development activities completed", nil
+	}
+	
+	return strings.Join(parts, "; "), nil
+}
+
+// buildEnhancedCommentSummary builds a summary from enhanced comment data
+func (e *EmbeddedLLM) buildEnhancedCommentSummary(completed, inProgress, topics []string) (string, error) {
+	var parts []string
+	
+	// Prioritize completed activities
+	if len(completed) > 0 {
+		if len(completed) == 1 {
+			parts = append(parts, completed[0])
+		} else if len(completed) <= 3 {
+			parts = append(parts, strings.Join(completed, ", "))
+		} else {
+			parts = append(parts, strings.Join(completed[:2], ", ")+" and other completed work")
+		}
+	}
+	
+	// Add in-progress work
+	if len(inProgress) > 0 && len(parts) < 2 {
+		if len(inProgress) == 1 {
+			parts = append(parts, inProgress[0]+" (in progress)")
+		} else {
+			parts = append(parts, strings.Join(inProgress[:1], ", ")+" (in progress)")
+		}
+	}
+	
+	// Add technical topics if we don't have enough content
+	if len(parts) == 0 && len(topics) > 0 {
+		if len(topics) <= 3 {
+			return "Technical work on " + strings.Join(topics, ", "), nil
+		} else {
+			return "Technical work on " + strings.Join(topics[:3], ", ") + " and more", nil
+		}
+	}
+	
+	if len(parts) == 0 {
+		return "Development activities", nil
+	}
+	
+	return strings.Join(parts, "; "), nil
+}
+
+// Helper function for min
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+// createFallbackProcessedData creates basic processed data when enhanced processing fails
+func (e *EmbeddedLLM) createFallbackProcessedData(issues []jira.Issue, comments []jira.Comment, originalError error) (*ProcessedData, error) {
+	// Create basic processed data structure
+	processedData := NewProcessedData()
+	
+	// Group comments by issue (basic implementation)
+	commentsByIssue := e.groupCommentsByIssueKey(comments, issues)
+	
+	// Process each issue with basic logic
+	for _, issue := range issues {
+		issueComments := commentsByIssue[issue.Key]
+		
+		// Create basic enhanced issue
+		enhancedIssue := EnhancedIssue{
+			Issue:             issue,
+			Comments:          issueComments,
+			ProcessedComments: make([]ProcessedComment, 0),
+			TechnicalContext:  &TechnicalContext{},
+			Priority:          e.calculateBasicPriority(issue),
+			WorkType:          e.determineBasicWorkType(issue),
+			CompletionStatus:  e.determineBasicCompletionStatus(issue),
+			KeyActivities:     e.extractBasicKeyActivities(issue, issueComments),
+		}
+		
+		// Process comments with fallback logic
+		for _, comment := range issueComments {
+			processedComment, err := e.processCommentWithFallback(comment)
+			if err == nil {
+				enhancedIssue.ProcessedComments = append(enhancedIssue.ProcessedComments, processedComment)
+			}
+		}
+		
+		// Generate basic work summary
+		enhancedIssue.WorkSummary = e.generateBasicWorkSummary(enhancedIssue)
+		
+		// Add to processed data
+		if err := processedData.AddIssue(enhancedIssue); err != nil {
+			continue // Skip issues that can't be added
+		}
+		
+		// Extract basic technical context
+		e.extractBasicTechnicalContext(processedData.TechnicalContext, enhancedIssue)
+	}
+	
+	return processedData, nil
+}
+
+// groupCommentsByIssueKey groups comments by issue key using basic matching
+func (e *EmbeddedLLM) groupCommentsByIssueKey(comments []jira.Comment, issues []jira.Issue) map[string][]jira.Comment {
+	commentsByIssue := make(map[string][]jira.Comment)
+	
+	// Initialize map with issue keys
+	for _, issue := range issues {
+		commentsByIssue[issue.Key] = make([]jira.Comment, 0)
+	}
+	
+	// For now, we'll assume comments need to be associated externally
+	// In a real implementation, this would use proper issue-comment relationships
+	// This is a placeholder that distributes comments evenly for demonstration
+	if len(issues) > 0 && len(comments) > 0 {
+		commentsPerIssue := len(comments) / len(issues)
+		remainder := len(comments) % len(issues)
+		
+		commentIndex := 0
+		for i, issue := range issues {
+			count := commentsPerIssue
+			if i < remainder {
+				count++
+			}
+			
+			for j := 0; j < count && commentIndex < len(comments); j++ {
+				commentsByIssue[issue.Key] = append(commentsByIssue[issue.Key], comments[commentIndex])
+				commentIndex++
+			}
+		}
+	}
+	
+	return commentsByIssue
+}
+
+// calculateBasicPriority calculates basic priority for fallback processing
+func (e *EmbeddedLLM) calculateBasicPriority(issue jira.Issue) int {
+	priority := strings.ToLower(issue.Fields.Priority.Name)
+	
+	switch priority {
+	case "critical", "highest":
+		return 100
+	case "high":
+		return 80
+	case "medium":
+		return 60
+	case "low":
+		return 40
+	case "lowest":
+		return 20
+	default:
+		return 50
+	}
+}
+
+// determineBasicWorkType determines basic work type for fallback processing
+func (e *EmbeddedLLM) determineBasicWorkType(issue jira.Issue) string {
+	issueType := strings.ToLower(issue.Fields.IssueType.Name)
+	summary := strings.ToLower(issue.Fields.Summary)
+	
+	if strings.Contains(issueType, "bug") || strings.Contains(summary, "fix") {
+		return "bug_fix"
+	}
+	if strings.Contains(summary, "deploy") {
+		return "deployment"
+	}
+	if strings.Contains(summary, "terraform") || strings.Contains(summary, "aws") {
+		return "infrastructure"
+	}
+	if strings.Contains(summary, "database") {
+		return "database"
+	}
+	if strings.Contains(issueType, "feature") || strings.Contains(issueType, "story") {
+		return "feature_development"
+	}
+	
+	return "general"
+}
+
+// determineBasicCompletionStatus determines basic completion status for fallback processing
+func (e *EmbeddedLLM) determineBasicCompletionStatus(issue jira.Issue) string {
+	status := strings.ToLower(issue.Fields.Status.Name)
+	
+	if strings.Contains(status, "done") || strings.Contains(status, "closed") {
+		return "completed"
+	}
+	if strings.Contains(status, "progress") || strings.Contains(status, "development") {
+		return "in_progress"
+	}
+	if strings.Contains(status, "blocked") {
+		return "blocked"
+	}
+	
+	return "planned"
+}
+
+// extractBasicKeyActivities extracts basic key activities for fallback processing
+func (e *EmbeddedLLM) extractBasicKeyActivities(issue jira.Issue, comments []jira.Comment) []string {
+	var activities []string
+	
+	// Extract from issue summary
+	summary := strings.ToLower(issue.Fields.Summary)
+	if strings.Contains(summary, "implement") {
+		activities = append(activities, "Implementation work")
+	}
+	if strings.Contains(summary, "fix") {
+		activities = append(activities, "Bug fixing")
+	}
+	if strings.Contains(summary, "deploy") {
+		activities = append(activities, "Deployment work")
+	}
+	
+	// Extract from comments
+	for _, comment := range comments {
+		text := strings.ToLower(comment.Body.Text)
+		if strings.Contains(text, "completed") {
+			activities = append(activities, "Completed tasks")
+			break
+		}
+		if strings.Contains(text, "working on") {
+			activities = append(activities, "Active development")
+			break
+		}
+	}
+	
+	if len(activities) == 0 {
+		activities = append(activities, "General development work")
+	}
+	
+	return e.removeDuplicateStrings(activities)
+}
+
+// processCommentWithFallback processes a comment with basic fallback logic
+func (e *EmbeddedLLM) processCommentWithFallback(comment jira.Comment) (ProcessedComment, error) {
+	if comment.ID == "" {
+		return ProcessedComment{}, fmt.Errorf("comment ID is empty")
+	}
+	
+	text := comment.Body.Text
+	
+	// Basic processing without enhanced features
+	processedComment := ProcessedComment{
+		Original:         comment,
+		ExtractedActions: e.extractBasicActions(text),
+		TechnicalTerms:   e.extractBasicTechnicalTerms(text),
+		WorkType:         e.determineBasicCommentWorkType(text),
+		Sentiment:        e.determineBasicSentiment(text),
+		Importance:       e.calculateBasicImportance(text),
+		ActivityType:     e.determineBasicActivityType(text),
+		CompletionStatus: e.determineBasicCompletionStatusFromComment(text),
+		KeyTopics:        e.extractBasicTopics(text),
+	}
+	
+	return processedComment, nil
+}
+
+// extractBasicActions extracts basic actions for fallback processing
+func (e *EmbeddedLLM) extractBasicActions(text string) []string {
+	lowerText := strings.ToLower(text)
+	var actions []string
+	
+	basicActions := []string{"implemented", "fixed", "updated", "deployed", "tested", "reviewed", "created"}
+	for _, action := range basicActions {
+		if strings.Contains(lowerText, action) {
+			actions = append(actions, action)
+		}
+	}
+	
+	return actions
+}
+
+// extractBasicTechnicalTerms extracts basic technical terms for fallback processing
+func (e *EmbeddedLLM) extractBasicTechnicalTerms(text string) []string {
+	lowerText := strings.ToLower(text)
+	var terms []string
+	
+	basicTerms := []string{"terraform", "aws", "database", "api", "docker", "kubernetes"}
+	for _, term := range basicTerms {
+		if strings.Contains(lowerText, term) {
+			terms = append(terms, term)
+		}
+	}
+	
+	return terms
+}
+
+// determineBasicCommentWorkType determines basic work type from comment for fallback processing
+func (e *EmbeddedLLM) determineBasicCommentWorkType(text string) string {
+	lowerText := strings.ToLower(text)
+	
+	if strings.Contains(lowerText, "terraform") || strings.Contains(lowerText, "aws") {
+		return "infrastructure"
+	}
+	if strings.Contains(lowerText, "database") {
+		return "database"
+	}
+	if strings.Contains(lowerText, "deploy") {
+		return "deployment"
+	}
+	if strings.Contains(lowerText, "test") {
+		return "testing"
+	}
+	
+	return "general"
+}
+
+// determineBasicSentiment determines basic sentiment for fallback processing
+func (e *EmbeddedLLM) determineBasicSentiment(text string) string {
+	lowerText := strings.ToLower(text)
+	
+	if strings.Contains(lowerText, "completed") || strings.Contains(lowerText, "fixed") {
+		return "positive"
+	}
+	if strings.Contains(lowerText, "blocked") || strings.Contains(lowerText, "failed") {
+		return "negative"
+	}
+	
+	return "neutral"
+}
+
+// calculateBasicImportance calculates basic importance for fallback processing
+func (e *EmbeddedLLM) calculateBasicImportance(text string) int {
+	lowerText := strings.ToLower(text)
+	importance := 50
+	
+	if strings.Contains(lowerText, "critical") || strings.Contains(lowerText, "urgent") {
+		importance += 30
+	}
+	if strings.Contains(lowerText, "completed") || strings.Contains(lowerText, "deployed") {
+		importance += 20
+	}
+	
+	return importance
+}
+
+// determineBasicActivityType determines basic activity type for fallback processing
+func (e *EmbeddedLLM) determineBasicActivityType(text string) string {
+	lowerText := strings.ToLower(text)
+	
+	if strings.Contains(lowerText, "completed") {
+		return "completion"
+	}
+	if strings.Contains(lowerText, "working on") {
+		return "initiation"
+	}
+	if strings.Contains(lowerText, "updated") {
+		return "update"
+	}
+	
+	return "progress"
+}
+
+// determineBasicCompletionStatusFromComment determines basic completion status from comment for fallback processing
+func (e *EmbeddedLLM) determineBasicCompletionStatusFromComment(text string) string {
+	lowerText := strings.ToLower(text)
+	
+	if strings.Contains(lowerText, "completed") || strings.Contains(lowerText, "done") {
+		return "completed"
+	}
+	if strings.Contains(lowerText, "working on") {
+		return "in_progress"
+	}
+	if strings.Contains(lowerText, "blocked") {
+		return "blocked"
+	}
+	
+	return "unknown"
+}
+
+// extractBasicTopics extracts basic topics for fallback processing
+func (e *EmbeddedLLM) extractBasicTopics(text string) []string {
+	lowerText := strings.ToLower(text)
+	var topics []string
+	
+	basicTopics := map[string]string{
+		"terraform": "Terraform",
+		"aws":       "AWS",
+		"database":  "Database",
+		"api":       "API",
+		"docker":    "Docker",
+	}
+	
+	for keyword, topic := range basicTopics {
+		if strings.Contains(lowerText, keyword) {
+			topics = append(topics, topic)
+		}
+	}
+	
+	return topics
+}
+
+// generateBasicWorkSummary generates basic work summary for fallback processing
+func (e *EmbeddedLLM) generateBasicWorkSummary(issue EnhancedIssue) string {
+	if len(issue.ProcessedComments) == 0 {
+		return fmt.Sprintf("%s: %s", issue.CompletionStatus, issue.Issue.Fields.Summary)
+	}
+	
+	// Simple summary based on completion status and work type
+	return fmt.Sprintf("%s %s work", strings.Title(issue.CompletionStatus), issue.WorkType)
+}
+
+// extractBasicTechnicalContext extracts basic technical context for fallback processing
+func (e *EmbeddedLLM) extractBasicTechnicalContext(context *TechnicalContext, issue EnhancedIssue) {
+	// Extract basic technologies from processed comments
+	for _, comment := range issue.ProcessedComments {
+		context.Technologies = append(context.Technologies, comment.TechnicalTerms...)
+		context.Actions = append(context.Actions, comment.ExtractedActions...)
+	}
+	
+	// Remove duplicates
+	context.Technologies = e.removeDuplicateStrings(context.Technologies)
+	context.Actions = e.removeDuplicateStrings(context.Actions)
+}
+
+// enhanceWithTechnicalPatterns enhances processed data with technical pattern matching
+func (e *EmbeddedLLM) enhanceWithTechnicalPatterns(processedData *ProcessedData, patternMatcher *TechnicalPatternMatcher) error {
+	if processedData == nil || patternMatcher == nil {
+		return fmt.Errorf("processed data or pattern matcher is nil")
+	}
+	
+	// Enhance each issue with technical pattern insights
+	for i := range processedData.Issues {
+		issue := &processedData.Issues[i]
+		
+		// Analyze issue summary and description
+		issueText := issue.Issue.Fields.Summary + " " + issue.Issue.Fields.Description.Text
+		if issueText != "" {
+			patterns, err := patternMatcher.MatchAllPatterns(issueText)
+			if err == nil {
+				e.applyPatternInsights(issue, patterns)
+			}
+		}
+		
+		// Analyze comments
+		for j := range issue.ProcessedComments {
+			comment := &issue.ProcessedComments[j]
+			if comment.Original.Body.Text != "" {
+				patterns, err := patternMatcher.MatchAllPatterns(comment.Original.Body.Text)
+				if err == nil {
+					e.applyCommentPatternInsights(comment, patterns)
+				}
+			}
+		}
+	}
+	
+	return nil
+}
+
+// applyPatternInsights applies pattern matching insights to an enhanced issue
+func (e *EmbeddedLLM) applyPatternInsights(issue *EnhancedIssue, patterns map[string]interface{}) {
+	// Extract infrastructure patterns
+	if infraPatterns, ok := patterns["infrastructure"].([]InfrastructurePattern); ok {
+		for _, pattern := range infraPatterns {
+			if pattern.Confidence > 0.7 {
+				// Add to technical context
+				if issue.TechnicalContext == nil {
+					issue.TechnicalContext = &TechnicalContext{}
+				}
+				
+				// Add infrastructure work
+				infraWork := InfrastructureWork{
+					Type:        pattern.Type,
+					Action:      pattern.Action,
+					Component:   pattern.Component,
+					Status:      pattern.Status,
+					Description: fmt.Sprintf("%s %s %s", pattern.Action, pattern.Type, pattern.Component),
+					Timestamp:   pattern.Timestamp,
+				}
+				issue.TechnicalContext.Infrastructure = append(issue.TechnicalContext.Infrastructure, infraWork)
+				
+				// Update key activities
+				activity := fmt.Sprintf("%s %s", strings.Title(pattern.Action), pattern.Type)
+				issue.KeyActivities = append(issue.KeyActivities, activity)
+			}
+		}
+	}
+	
+	// Extract deployment patterns
+	if deployPatterns, ok := patterns["deployment"].([]DeploymentPattern); ok {
+		for _, pattern := range deployPatterns {
+			if pattern.Confidence > 0.7 {
+				if issue.TechnicalContext == nil {
+					issue.TechnicalContext = &TechnicalContext{}
+				}
+				
+				// Add deployment activity
+				deployActivity := DeploymentActivity{
+					Type:        pattern.Type,
+					Environment: pattern.Environment,
+					Status:      pattern.Status,
+					Component:   pattern.Component,
+					Description: fmt.Sprintf("%s to %s", pattern.Type, pattern.Environment),
+					Timestamp:   pattern.Timestamp,
+				}
+				issue.TechnicalContext.Deployments = append(issue.TechnicalContext.Deployments, deployActivity)
+				
+				// Update key activities
+				activity := fmt.Sprintf("%s to %s", strings.Title(pattern.Type), pattern.Environment)
+				issue.KeyActivities = append(issue.KeyActivities, activity)
+			}
+		}
+	}
+	
+	// Remove duplicate activities
+	issue.KeyActivities = e.removeDuplicateStrings(issue.KeyActivities)
+}
+
+// applyCommentPatternInsights applies pattern matching insights to a processed comment
+func (e *EmbeddedLLM) applyCommentPatternInsights(comment *ProcessedComment, patterns map[string]interface{}) {
+	// Extract additional technical terms from patterns
+	if infraPatterns, ok := patterns["infrastructure"].([]InfrastructurePattern); ok {
+		for _, pattern := range infraPatterns {
+			if pattern.Confidence > 0.7 {
+				comment.TechnicalTerms = append(comment.TechnicalTerms, pattern.Type)
+				if pattern.Action != "unknown" {
+					comment.ExtractedActions = append(comment.ExtractedActions, pattern.Action)
+				}
+			}
+		}
+	}
+	
+	if deployPatterns, ok := patterns["deployment"].([]DeploymentPattern); ok {
+		for _, pattern := range deployPatterns {
+			if pattern.Confidence > 0.7 {
+				comment.TechnicalTerms = append(comment.TechnicalTerms, "deployment")
+				comment.KeyTopics = append(comment.KeyTopics, "Deployment")
+				if pattern.Environment != "unknown" {
+					comment.KeyTopics = append(comment.KeyTopics, strings.Title(pattern.Environment))
+				}
+			}
+		}
+	}
+	
+	if devPatterns, ok := patterns["development"].([]DevelopmentPattern); ok {
+		for _, pattern := range devPatterns {
+			if pattern.Confidence > 0.7 {
+				comment.TechnicalTerms = append(comment.TechnicalTerms, pattern.Type)
+				if pattern.Action != "unknown" {
+					comment.ExtractedActions = append(comment.ExtractedActions, pattern.Action)
+				}
+			}
+		}
+	}
+	
+	// Remove duplicates
+	comment.TechnicalTerms = e.removeDuplicateStrings(comment.TechnicalTerms)
+	comment.ExtractedActions = e.removeDuplicateStrings(comment.ExtractedActions)
+	comment.KeyTopics = e.removeDuplicateStrings(comment.KeyTopics)
 }

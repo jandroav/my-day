@@ -107,7 +107,6 @@ func (p *EnhancedDataProcessor) processComment(comment jira.Comment) (ProcessedC
 	}
 	
 	text := comment.Body.Text
-	lowerText := strings.ToLower(text)
 	
 	processedComment := ProcessedComment{
 		Original:         comment,
