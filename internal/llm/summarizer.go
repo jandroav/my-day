@@ -22,11 +22,17 @@ type ConnectionTester interface {
 
 // LLMConfig represents LLM configuration options
 type LLMConfig struct {
-	Enabled     bool
-	Mode        string // "embedded", "ollama", "disabled"
-	Model       string
-	OllamaURL   string
-	OllamaModel string
+	Enabled                  bool
+	Mode                     string // "embedded", "ollama", "disabled"
+	Model                    string
+	Debug                    bool
+	SummaryStyle             string // "technical", "business", "brief"
+	MaxSummaryLength         int
+	IncludeTechnicalDetails  bool
+	PrioritizeRecentWork     bool
+	FallbackStrategy         string // "graceful", "strict", "minimal"
+	OllamaURL                string
+	OllamaModel              string
 }
 
 // NewSummarizer creates a new summarizer based on configuration
@@ -37,9 +43,9 @@ func NewSummarizer(config LLMConfig) (Summarizer, error) {
 	
 	switch config.Mode {
 	case "embedded":
-		return NewEmbeddedLLM(config.Model), nil
+		return NewEmbeddedLLMWithConfig(config), nil
 	case "ollama":
-		return NewOllamaClient(config.OllamaURL, config.OllamaModel), nil
+		return NewOllamaClientWithConfig(config), nil
 	case "disabled":
 		return NewDisabledSummarizer(), nil
 	default:

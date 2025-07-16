@@ -33,10 +33,16 @@ type ProjectInfo struct {
 
 // LLMConfig represents LLM configuration
 type LLMConfig struct {
-	Enabled bool         `mapstructure:"enabled" yaml:"enabled"`
-	Mode    string       `mapstructure:"mode" yaml:"mode"`
-	Model   string       `mapstructure:"model" yaml:"model"`
-	Ollama  OllamaConfig `mapstructure:"ollama" yaml:"ollama"`
+	Enabled                  bool         `mapstructure:"enabled" yaml:"enabled"`
+	Mode                     string       `mapstructure:"mode" yaml:"mode"`
+	Model                    string       `mapstructure:"model" yaml:"model"`
+	Debug                    bool         `mapstructure:"debug" yaml:"debug"`
+	SummaryStyle             string       `mapstructure:"summary_style" yaml:"summary_style"`
+	MaxSummaryLength         int          `mapstructure:"max_summary_length" yaml:"max_summary_length"`
+	IncludeTechnicalDetails  bool         `mapstructure:"include_technical_details" yaml:"include_technical_details"`
+	PrioritizeRecentWork     bool         `mapstructure:"prioritize_recent_work" yaml:"prioritize_recent_work"`
+	FallbackStrategy         string       `mapstructure:"fallback_strategy" yaml:"fallback_strategy"`
+	Ollama                   OllamaConfig `mapstructure:"ollama" yaml:"ollama"`
 }
 
 // OllamaConfig represents Ollama-specific configuration

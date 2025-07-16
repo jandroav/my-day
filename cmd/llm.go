@@ -57,11 +57,17 @@ func testLLMConnection() error {
 	}
 
 	llmConfig := llm.LLMConfig{
-		Enabled:     cfg.LLM.Enabled,
-		Mode:        cfg.LLM.Mode,
-		Model:       cfg.LLM.Model,
-		OllamaURL:   cfg.LLM.Ollama.BaseURL,
-		OllamaModel: cfg.LLM.Ollama.Model,
+		Enabled:                  cfg.LLM.Enabled,
+		Mode:                     cfg.LLM.Mode,
+		Model:                    cfg.LLM.Model,
+		Debug:                    cfg.LLM.Debug,
+		SummaryStyle:             cfg.LLM.SummaryStyle,
+		MaxSummaryLength:         cfg.LLM.MaxSummaryLength,
+		IncludeTechnicalDetails:  cfg.LLM.IncludeTechnicalDetails,
+		PrioritizeRecentWork:     cfg.LLM.PrioritizeRecentWork,
+		FallbackStrategy:         cfg.LLM.FallbackStrategy,
+		OllamaURL:                cfg.LLM.Ollama.BaseURL,
+		OllamaModel:              cfg.LLM.Ollama.Model,
 	}
 
 	color.Cyan("🧠 Testing LLM connectivity...")
@@ -112,6 +118,12 @@ func showLLMStatus() error {
 	color.White("  Enabled: %t", cfg.LLM.Enabled)
 	color.White("  Mode: %s", cfg.LLM.Mode)
 	color.White("  Model: %s", cfg.LLM.Model)
+	color.White("  Debug: %t", cfg.LLM.Debug)
+	color.White("  Summary Style: %s", cfg.LLM.SummaryStyle)
+	color.White("  Max Summary Length: %d", cfg.LLM.MaxSummaryLength)
+	color.White("  Include Technical Details: %t", cfg.LLM.IncludeTechnicalDetails)
+	color.White("  Prioritize Recent Work: %t", cfg.LLM.PrioritizeRecentWork)
+	color.White("  Fallback Strategy: %s", cfg.LLM.FallbackStrategy)
 
 	if cfg.LLM.Mode == "ollama" {
 		color.White("  Ollama URL: %s", cfg.LLM.Ollama.BaseURL)
@@ -134,11 +146,17 @@ func showLLMStatus() error {
 	case "ollama":
 		color.White("Status: Testing Ollama connection...")
 		llmConfig := llm.LLMConfig{
-			Enabled:     cfg.LLM.Enabled,
-			Mode:        cfg.LLM.Mode,
-			Model:       cfg.LLM.Model,
-			OllamaURL:   cfg.LLM.Ollama.BaseURL,
-			OllamaModel: cfg.LLM.Ollama.Model,
+			Enabled:                  cfg.LLM.Enabled,
+			Mode:                     cfg.LLM.Mode,
+			Model:                    cfg.LLM.Model,
+			Debug:                    cfg.LLM.Debug,
+			SummaryStyle:             cfg.LLM.SummaryStyle,
+			MaxSummaryLength:         cfg.LLM.MaxSummaryLength,
+			IncludeTechnicalDetails:  cfg.LLM.IncludeTechnicalDetails,
+			PrioritizeRecentWork:     cfg.LLM.PrioritizeRecentWork,
+			FallbackStrategy:         cfg.LLM.FallbackStrategy,
+			OllamaURL:                cfg.LLM.Ollama.BaseURL,
+			OllamaModel:              cfg.LLM.Ollama.Model,
 		}
 		
 		if err := llm.TestLLMConnection(llmConfig); err != nil {

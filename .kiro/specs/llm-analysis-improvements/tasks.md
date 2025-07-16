@@ -71,14 +71,14 @@
     - Create fallback summaries when comment processing fails
     - _Requirements: 4.4, 5.1, 5.2, 5.3_
 
-- [ ] 7. Add configuration options for LLM behavior
+- [x] 7. Add configuration options for LLM behavior
   - Add debug mode flag to enable verbose LLM processing output
   - Implement summary style configuration (technical, business, brief)
   - Add options to control summary length and technical detail level
   - _Requirements: 4.3, 4.4_
 
 - [ ] 8. Improve Ollama integration for better prompts
-  - [ ] 8.1 Enhance Ollama prompt generation
+  - [-] 8.1 Enhance Ollama prompt generation
     - Improve buildStandupPrompt to include more context
     - Add structured prompts for better technical term recognition
     - Implement prompt templates for different summary styles

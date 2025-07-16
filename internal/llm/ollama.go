@@ -17,6 +17,7 @@ type OllamaClient struct {
 	baseURL string
 	model   string
 	client  *http.Client
+	config  *LLMConfig
 }
 
 // OllamaRequest represents a request to Ollama API
@@ -38,6 +39,21 @@ func NewOllamaClient(baseURL, model string) *OllamaClient {
 		baseURL: strings.TrimSuffix(baseURL, "/"),
 		model:   model,
 		client:  &http.Client{Timeout: 30 * time.Second},
+	}
+}
+
+// NewOllamaClientWithConfig creates a new Ollama client with full configuration
+func NewOllamaClientWithConfig(config LLMConfig) *OllamaClient {
+	timeout := 30 * time.Second
+	if config.Debug {
+		timeout = 60 * time.Second // Longer timeout for debug mode
+	}
+	
+	return &OllamaClient{
+		baseURL: strings.TrimSuffix(config.OllamaURL, "/"),
+		model:   config.OllamaModel,
+		client:  &http.Client{Timeout: timeout},
+		config:  &config, // Store config for prompt generation
 	}
 }
 

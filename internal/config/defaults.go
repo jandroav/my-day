@@ -20,6 +20,12 @@ func SetDefaults() {
 	viper.SetDefault("llm.enabled", true)
 	viper.SetDefault("llm.mode", "embedded")
 	viper.SetDefault("llm.model", "tinyllama")
+	viper.SetDefault("llm.debug", false)
+	viper.SetDefault("llm.summary_style", "technical")
+	viper.SetDefault("llm.max_summary_length", 200)
+	viper.SetDefault("llm.include_technical_details", true)
+	viper.SetDefault("llm.prioritize_recent_work", true)
+	viper.SetDefault("llm.fallback_strategy", "graceful")
 	viper.SetDefault("llm.ollama.base_url", "http://localhost:11434")
 	viper.SetDefault("llm.ollama.model", "llama3.1")
 
