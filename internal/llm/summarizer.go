@@ -12,6 +12,7 @@ type Summarizer interface {
 	SummarizeComments(comments []jira.Comment) (string, error)
 	SummarizeWorklog(worklogs []jira.WorklogEntry) (string, error)
 	GenerateStandupSummary(issues []jira.Issue, worklogs []jira.WorklogEntry) (string, error)
+	GenerateStandupSummaryWithComments(issues []jira.Issue, comments []jira.Comment, worklogs []jira.WorklogEntry) (string, error)
 }
 
 // ConnectionTester defines interface for testing LLM connectivity
@@ -91,6 +92,11 @@ func (d *DisabledSummarizer) SummarizeWorklog(worklogs []jira.WorklogEntry) (str
 // GenerateStandupSummary returns basic activity summary
 func (d *DisabledSummarizer) GenerateStandupSummary(issues []jira.Issue, worklogs []jira.WorklogEntry) (string, error) {
 	return fmt.Sprintf("Recent activity: %d issues, %d worklog entries", len(issues), len(worklogs)), nil
+}
+
+// GenerateStandupSummaryWithComments returns basic activity summary with comments
+func (d *DisabledSummarizer) GenerateStandupSummaryWithComments(issues []jira.Issue, comments []jira.Comment, worklogs []jira.WorklogEntry) (string, error) {
+	return fmt.Sprintf("Recent activity: %d issues, %d comments, %d worklog entries", len(issues), len(comments), len(worklogs)), nil
 }
 
 // TestLLMConnection tests if the configured LLM service is available

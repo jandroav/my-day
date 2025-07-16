@@ -260,9 +260,9 @@ func (g *Generator) generateConsoleWithComments(issues []jira.Issue, commentsMap
 		}
 		
 		if len(allComments) > 0 {
-			// Create an intelligent summary of all today's work
-			summary := g.generateOverallWorkSummary(allComments)
-			if summary != "" {
+			// Use the enhanced LLM method for intelligent summary
+			summary, err := g.summarizer.GenerateStandupSummaryWithComments(issues, allComments, worklogs)
+			if err == nil && summary != "" {
 				report.WriteString("🤖 AI SUMMARY OF TODAY'S WORK\n")
 				report.WriteString(fmt.Sprintf("%s\n\n", summary))
 			}
@@ -625,9 +625,9 @@ func (g *Generator) generateMarkdownWithComments(issues []jira.Issue, commentsMa
 		}
 		
 		if len(allComments) > 0 {
-			// Create an intelligent summary of all today's work
-			summary := g.generateOverallWorkSummary(allComments)
-			if summary != "" {
+			// Use the enhanced LLM method for intelligent summary
+			summary, err := g.summarizer.GenerateStandupSummaryWithComments(issues, allComments, worklogs)
+			if err == nil && summary != "" {
 				report.WriteString("## 🤖 AI Summary of Today's Work\n\n")
 				report.WriteString(fmt.Sprintf("%s\n\n", summary))
 			}
@@ -724,93 +724,7 @@ func (g *Generator) formatIssueMarkdownWithComments(issue jira.Issue, comments [
 	return result
 }
 
-// generateOverallWorkSummary creates an intelligent summary of all today's work
-func (g *Generator) generateOverallWorkSummary(allComments []jira.Comment) string {
-	if len(allComments) == 0 {
-		return ""
-	}
-	
-	// Collect all activities and categorize them
-	var activities []string
-	var topics []string
-	
-	for _, comment := range allComments {
-		text := strings.ToLower(comment.Body.Text)
-		
-		// Identify key activities
-		if strings.Contains(text, "merged") && strings.Contains(text, "pr") {
-			activities = append(activities, "Merged PRs for deployment")
-		} else if strings.Contains(text, "created") && strings.Contains(text, "pr") {
-			activities = append(activities, "Created foundational PRs")
-		}
-		
-		if strings.Contains(text, "terraform") || strings.Contains(text, "spacelift") {
-			if strings.Contains(text, "secrets") {
-				activities = append(activities, "Configured secrets management infrastructure")
-			} else {
-				activities = append(activities, "Updated infrastructure configuration")
-			}
-		}
-		
-		if strings.Contains(text, "database") && strings.Contains(text, "permissions") {
-			activities = append(activities, "Worked on database permissions")
-		}
-		
-		if strings.Contains(text, "vpc") && strings.Contains(text, "ecr") {
-			activities = append(activities, "Fixed VPC endpoint configuration")
-		}
-		
-		if strings.Contains(text, "testing") || strings.Contains(text, "performed") {
-			activities = append(activities, "Performed testing and validation")
-		}
-		
-		// Collect topics
-		topicMap := map[string]string{
-			"terraform": "Terraform",
-			"spacelift": "Spacelift",
-			"aws": "AWS",
-			"database": "Database",
-			"secrets": "Secrets Management",
-			"vpc": "VPC",
-			"ecr": "ECR",
-			"oidc": "OIDC",
-		}
-		
-		for keyword, topic := range topicMap {
-			if strings.Contains(text, keyword) {
-				topics = append(topics, topic)
-			}
-		}
-	}
-	
-	// Remove duplicates and create summary
-	activities = removeDuplicates(activities)
-	topics = removeDuplicates(topics)
-	
-	var summary []string
-	
-	if len(activities) > 0 {
-		if len(activities) == 1 {
-			summary = append(summary, activities[0])
-		} else if len(activities) <= 3 {
-			summary = append(summary, strings.Join(activities, ", "))
-		} else {
-			summary = append(summary, strings.Join(activities[:3], ", ")+" and more infrastructure work")
-		}
-	}
-	
-	if len(topics) > 3 {
-		summary = append(summary, fmt.Sprintf("Focus areas: %s", strings.Join(topics[:3], ", ")))
-	} else if len(topics) > 0 && len(activities) == 0 {
-		summary = append(summary, fmt.Sprintf("Technical work on %s", strings.Join(topics, ", ")))
-	}
-	
-	if len(summary) == 0 {
-		return fmt.Sprintf("Worked on %d development tasks with detailed progress updates", len(allComments))
-	}
-	
-	return strings.Join(summary, ". ")
-}
+
 
 // removeDuplicates removes duplicate strings from a slice
 func removeDuplicates(slice []string) []string {

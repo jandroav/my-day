@@ -90,6 +90,12 @@ func (o *OllamaClient) GenerateStandupSummary(issues []jira.Issue, worklogs []ji
 	return o.generate(prompt)
 }
 
+// GenerateStandupSummaryWithComments creates an enhanced summary using comment data
+func (o *OllamaClient) GenerateStandupSummaryWithComments(issues []jira.Issue, comments []jira.Comment, worklogs []jira.WorklogEntry) (string, error) {
+	prompt := o.buildStandupPromptWithComments(issues, comments, worklogs)
+	return o.generate(prompt)
+}
+
 // TestConnection tests if Ollama is available
 func (o *OllamaClient) TestConnection() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -241,6 +247,50 @@ func (o *OllamaClient) buildCommentsPrompt(comments []jira.Comment) string {
 	}
 	
 	prompt += "\nProvide a 1-2 sentence summary of the work progress described in these comments:"
+	
+	return prompt
+}
+
+// buildStandupPromptWithComments creates a comprehensive prompt for standup summary with comments
+func (o *OllamaClient) buildStandupPromptWithComments(issues []jira.Issue, comments []jira.Comment, worklogs []jira.WorklogEntry) string {
+	prompt := "Create a comprehensive standup summary based on this Jira activity with detailed comment analysis:\n\n"
+	
+	if len(issues) > 0 {
+		prompt += "Recent Issues:\n"
+		for i, issue := range issues {
+			if i >= 5 { // Limit to most important issues
+				break
+			}
+			prompt += fmt.Sprintf("- %s [%s]: %s (Status: %s)\n", 
+				issue.Key, 
+				issue.Fields.Project.Key,
+				issue.Fields.Summary,
+				issue.Fields.Status.Name)
+		}
+		prompt += "\n"
+	}
+	
+	if len(comments) > 0 {
+		prompt += "Today's Comments (showing actual work done):\n"
+		for i, comment := range comments {
+			if i >= 8 { // Show more comments since they're the main data source
+				break
+			}
+			timeStr := comment.Created.Time.Format("15:04")
+			prompt += fmt.Sprintf("- %s: %s\n", timeStr, comment.Body.Text)
+		}
+		prompt += "\n"
+	}
+	
+	if len(worklogs) > 0 {
+		prompt += fmt.Sprintf("Work logged on %d items\n\n", len(worklogs))
+	}
+	
+	prompt += "Provide a 2-3 sentence summary for daily standup that focuses on:\n"
+	prompt += "1. Key technical work accomplished (infrastructure, deployments, fixes)\n"
+	prompt += "2. Current status and any blockers\n"
+	prompt += "3. Next steps or work ready for deployment\n\n"
+	prompt += "Summary:"
 	
 	return prompt
 }
