@@ -103,7 +103,7 @@
     - Validate summary quality and accuracy
     - _Requirements: 1.1, 1.2, 1.3_
 
-- [ ] 10. Update report generation to use enhanced LLM features
+- [-] 10. Update report generation to use enhanced LLM features
   - Modify report generator to pass additional context to LLM
   - Add debug output options to report command
   - Implement summary quality indicators in reports

@@ -35,6 +35,9 @@ func init() {
 	reportCmd.Flags().String("output", "", "Output file path (default: stdout)")
 	reportCmd.Flags().Bool("no-llm", false, "Disable LLM summarization for this report")
 	reportCmd.Flags().Bool("detailed", false, "Include detailed ticket information")
+	reportCmd.Flags().Bool("debug", false, "Enable debug output for LLM processing")
+	reportCmd.Flags().Bool("show-quality", false, "Show summary quality indicators")
+	reportCmd.Flags().Bool("verbose", false, "Show verbose LLM processing information")
 }
 
 func generateReport(cmd *cobra.Command) error {
@@ -79,6 +82,9 @@ func generateReport(cmd *cobra.Command) error {
 	}
 
 	detailed, _ := cmd.Flags().GetBool("detailed")
+	debug, _ := cmd.Flags().GetBool("debug")
+	showQuality, _ := cmd.Flags().GetBool("show-quality")
+	verbose, _ := cmd.Flags().GetBool("verbose")
 
 	// Create report generator
 	generator := report.NewGenerator(&report.Config{
@@ -92,6 +98,9 @@ func generateReport(cmd *cobra.Command) error {
 		IncludeToday:      cfg.Report.IncludeToday,
 		IncludeInProgress: cfg.Report.IncludeInProgress,
 		Detailed:          detailed,
+		Debug:             debug,
+		ShowQuality:       showQuality,
+		Verbose:           verbose,
 	})
 
 	color.Cyan("📋 Generating daily standup report...")
@@ -115,8 +124,13 @@ func generateReport(cmd *cobra.Command) error {
 			})
 		}
 		
-		// Use comment-enhanced report generation
-		reportContent, err = generator.GenerateWithComments(reportIssuesWithComments, cache.Worklogs, targetDate)
+		// Use enhanced context generation if debug or quality flags are enabled
+		if debug || showQuality || verbose {
+			reportContent, err = generator.GenerateWithEnhancedContext(reportIssuesWithComments, cache.Worklogs, targetDate)
+		} else {
+			// Use standard comment-enhanced report generation
+			reportContent, err = generator.GenerateWithComments(reportIssuesWithComments, cache.Worklogs, targetDate)
+		}
 	} else {
 		// Fallback to basic report generation
 		reportContent, err = generator.Generate(cache.Issues, cache.Worklogs, targetDate)
