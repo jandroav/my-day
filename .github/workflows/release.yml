@@ -1,0 +1,77 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Get version from tag
+        id: version
+        run: |
+          echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+          echo "TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Build for all platforms
+        run: |
+          mkdir -p dist
+          
+          # Build for different OS/ARCH combinations
+          GOOS=linux GOARCH=amd64 go build -ldflags="-X 'github.com/your-org/my-day/cmd.version=${{ steps.version.outputs.VERSION }}' -X 'github.com/your-org/my-day/cmd.commit=${{ github.sha }}' -X 'github.com/your-org/my-day/cmd.date=$(date -u +%Y-%m-%dT%H:%M:%SZ)'" -o dist/my-day-linux-amd64
+          GOOS=linux GOARCH=arm64 go build -ldflags="-X 'github.com/your-org/my-day/cmd.version=${{ steps.version.outputs.VERSION }}' -X 'github.com/your-org/my-day/cmd.commit=${{ github.sha }}' -X 'github.com/your-org/my-day/cmd.date=$(date -u +%Y-%m-%dT%H:%M:%SZ)'" -o dist/my-day-linux-arm64
+          GOOS=darwin GOARCH=amd64 go build -ldflags="-X 'github.com/your-org/my-day/cmd.version=${{ steps.version.outputs.VERSION }}' -X 'github.com/your-org/my-day/cmd.commit=${{ github.sha }}' -X 'github.com/your-org/my-day/cmd.date=$(date -u +%Y-%m-%dT%H:%M:%SZ)'" -o dist/my-day-darwin-amd64
+          GOOS=darwin GOARCH=arm64 go build -ldflags="-X 'github.com/your-org/my-day/cmd.version=${{ steps.version.outputs.VERSION }}' -X 'github.com/your-org/my-day/cmd.commit=${{ github.sha }}' -X 'github.com/your-org/my-day/cmd.date=$(date -u +%Y-%m-%dT%H:%M:%SZ)'" -o dist/my-day-darwin-arm64
+          GOOS=windows GOARCH=amd64 go build -ldflags="-X 'github.com/your-org/my-day/cmd.version=${{ steps.version.outputs.VERSION }}' -X 'github.com/your-org/my-day/cmd.commit=${{ github.sha }}' -X 'github.com/your-org/my-day/cmd.date=$(date -u +%Y-%m-%dT%H:%M:%SZ)'" -o dist/my-day-windows-amd64.exe
+          GOOS=windows GOARCH=arm64 go build -ldflags="-X 'github.com/your-org/my-day/cmd.version=${{ steps.version.outputs.VERSION }}' -X 'github.com/your-org/my-day/cmd.commit=${{ github.sha }}' -X 'github.com/your-org/my-day/cmd.date=$(date -u +%Y-%m-%dT%H:%M:%SZ)'" -o dist/my-day-windows-arm64.exe
+
+      - name: Create compressed archives
+        run: |
+          cd dist
+          
+          # Create tar.gz for Unix systems
+          tar -czf my-day-linux-amd64.tar.gz my-day-linux-amd64
+          tar -czf my-day-linux-arm64.tar.gz my-day-linux-arm64
+          tar -czf my-day-darwin-amd64.tar.gz my-day-darwin-amd64
+          tar -czf my-day-darwin-arm64.tar.gz my-day-darwin-arm64
+          
+          # Create zip for Windows
+          zip my-day-windows-amd64.zip my-day-windows-amd64.exe
+          zip my-day-windows-arm64.zip my-day-windows-arm64.exe
+
+      - name: Generate checksums
+        run: |
+          cd dist
+          sha256sum *.tar.gz *.zip > checksums.txt
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/my-day-linux-amd64.tar.gz
+            dist/my-day-linux-arm64.tar.gz
+            dist/my-day-darwin-amd64.tar.gz
+            dist/my-day-darwin-arm64.tar.gz
+            dist/my-day-windows-amd64.zip
+            dist/my-day-windows-arm64.zip
+            dist/checksums.txt
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
