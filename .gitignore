@@ -10,33 +10,83 @@
 
 # Output of the go coverage tool, specifically when used with LiteIDE
 *.out
+*.prof
+
+# Coverage files
+coverage.txt
+coverage.html
+coverage.out
+c.out
+
+# Go build artifacts
 my-day
+my-day.exe
 
 # Dependency directories
 vendor/
 
 # Go workspace file
 go.work
+go.work.sum
+
+# Go module download cache
+/go/pkg/mod/
 
 # IDE files
 .vscode/
 .idea/
 *.swp
 *.swo
+*~
 
 # OS files
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
 
 # Config files (may contain secrets)
 config.yaml
+config.yml
 .my-day/
+*.env
+.env
+.env.local
+.env.production
+.env.test
+
+# Log files
+*.log
+logs/
+log/
 
 # Build artifacts
 dist/
 build/
+bin/
+release/
 
 # Temporary files
 *.tmp
-*.log
-my-day
+*.temp
+.tmp/
+.temp/
+
+# Debug files
+debug
+debug.test
+*.pprof
+
+# Test cache
+.testcache/
+
+# Air live reload tool
+tmp/
+.air.toml
+
+# GoReleaser artifacts
+.goreleaser.yml.backup
+goreleaser.yml.backup
