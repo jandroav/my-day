@@ -1296,36 +1296,6 @@ func (g *Generator) generateSummaryQualityIndicators(summary string, issueCount 
 	return quality.String()
 }
 
-	// Data coverage
-	if issueCount > 0 && commentCount > 0 {
-		qualityScore += 25
-		qualityFactors = append(qualityFactors, "✓ Based on comprehensive data")
-	} else {
-		qualityFactors = append(qualityFactors, "⚠ Limited input data")
-	}
-
-	// Display quality score
-	var qualityLevel string
-	if qualityScore >= 75 {
-		qualityLevel = "🟢 High"
-	} else if qualityScore >= 50 {
-		qualityLevel = "🟡 Medium"
-	} else {
-		qualityLevel = "🔴 Low"
-	}
-
-	quality.WriteString(fmt.Sprintf("Quality Score: %s (%.0f/100)\n", qualityLevel, qualityScore))
-	quality.WriteString(fmt.Sprintf("Summary Length: %d characters, %d words\n", summaryLength, wordsCount))
-	quality.WriteString(fmt.Sprintf("Input Data: %d issues, %d comments\n", issueCount, commentCount))
-	quality.WriteString("\nQuality Factors:\n")
-	
-	for _, factor := range qualityFactors {
-		quality.WriteString(fmt.Sprintf("  %s\n", factor))
-	}
-
-	return quality.String()
-}
-
 // generateConsoleWithEnhancedContext generates console output with enhanced LLM context
 func (g *Generator) generateConsoleWithEnhancedContext(issues []jira.Issue, commentsMap map[string][]jira.Comment, worklogs []jira.WorklogEntry, targetDate time.Time) (string, error) {
 	var report strings.Builder
