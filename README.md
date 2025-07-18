@@ -33,7 +33,7 @@ A colorful Golang CLI tool that helps DevOps team members track Jira tickets acr
 
 ### Option 1: Download Binary (Recommended)
 
-1. **Download the latest release** from [releases](https://github.com/jandro/my-day/releases)
+1. **Download the latest release** from [releases](https://github.com/jandroav/my-day/releases)
 2. **Extract the binary** to your preferred location
 3. **Make it executable** (Linux/macOS):
    ```bash
@@ -53,7 +53,7 @@ A colorful Golang CLI tool that helps DevOps team members track Jira tickets acr
 **Steps:**
 ```bash
 # Clone the repository
-git clone https://github.com/jandro/my-day.git
+git clone https://github.com/jandroav/my-day.git
 cd my-day
 
 # Build the binary
@@ -66,7 +66,7 @@ sudo mv my-day /usr/local/bin/
 ### Option 3: Install with Go
 
 ```bash
-go install github.com/jandro/my-day@latest
+go install github.com/jandroav/my-day@latest
 ```
 
 ## 🚀 Quick Start
@@ -893,5 +893,5 @@ MIT License - see [LICENSE](LICENSE) file for details.
 
 ## Support
 
-- 🐛 [Issues](https://github.com/jandro/my-day/issues)
-- 💬 [Discussions](https://github.com/jandro/my-day/discussions)
+- 🐛 [Issues](https://github.com/jandroav/my-day/issues)
+- 💬 [Discussions](https://github.com/jandroav/my-day/discussions)
