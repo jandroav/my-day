@@ -62,11 +62,6 @@ func initializeConfig(cmd *cobra.Command) error {
 	defaultConfig := config.Config{
 		Jira: config.JiraConfig{
 			BaseURL: "https://your-instance.atlassian.net",
-			OAuth: config.OAuthConfig{
-				ClientID:     "your-client-id",
-				ClientSecret: "your-client-secret",
-				RedirectURI:  "http://localhost:8080/callback",
-			},
 			Projects: []config.ProjectInfo{
 				{Key: "DEVOPS", Name: "DevOps Team"},
 				{Key: "INTEROP", Name: "Interop Team"},

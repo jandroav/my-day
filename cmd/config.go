@@ -94,9 +94,6 @@ func showConfiguration(cmd *cobra.Command) error {
 	// Jira section
 	color.Yellow("Jira:")
 	color.White("  Base URL: %s", cfg.Jira.BaseURL)
-	color.White("  OAuth Client ID: %s", maskSensitive(cfg.Jira.OAuth.ClientID))
-	color.White("  OAuth Client Secret: %s", maskSensitive(cfg.Jira.OAuth.ClientSecret))
-	color.White("  Redirect URI: %s", cfg.Jira.OAuth.RedirectURI)
 	color.White("  Projects:")
 	for _, project := range cfg.Jira.Projects {
 		color.White("    - %s (%s)", project.Key, project.Name)
@@ -125,11 +122,8 @@ func showConfiguration(cmd *cobra.Command) error {
 }
 
 func showConfigurationJSON(cfg *config.Config) error {
-	// Create a copy with masked sensitive values
-	safeCfg := *cfg
-	safeCfg.Jira.OAuth.ClientSecret = maskSensitive(cfg.Jira.OAuth.ClientSecret)
-
-	data, err := json.MarshalIndent(safeCfg, "", "  ")
+	// Marshal the configuration directly (no sensitive values to mask)
+	data, err := json.MarshalIndent(cfg, "", "  ")
 	if err != nil {
 		return fmt.Errorf("failed to marshal configuration: %w", err)
 	}

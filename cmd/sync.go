@@ -65,18 +65,20 @@ func syncTickets(cmd *cobra.Command) error {
 		return fmt.Errorf("Jira base URL not configured. Run 'my-day init' first")
 	}
 
-	client := jira.NewClient(
-		cfg.Jira.BaseURL,
-		cfg.Jira.OAuth.ClientID,
-		cfg.Jira.OAuth.ClientSecret,
-		cfg.Jira.OAuth.RedirectURI,
-	)
-
-	// Check authentication
-	ctx := context.Background()
-	if !client.GetAuthManager().IsAuthenticated(ctx) {
-		return fmt.Errorf("not authenticated with Jira. Run 'my-day auth' first")
+	// Create temporary auth manager to check authentication
+	authManager := jira.NewAuthManager("", "")
+	if !authManager.IsAuthenticated() {
+		return fmt.Errorf("not authenticated with Jira. Run 'my-day auth --email your-email --token your-token' first")
 	}
+
+	// Load API token and create client
+	apiToken, err := authManager.LoadAPIToken()
+	if err != nil {
+		return fmt.Errorf("failed to load API token: %w", err)
+	}
+
+	client := jira.NewClient(cfg.Jira.BaseURL, apiToken.Email, apiToken.Token)
+	ctx := context.Background()
 
 	// Get cache file path
 	cacheFile, err := getCacheFilePath()
@@ -134,15 +136,24 @@ func syncTickets(cmd *cobra.Command) error {
 	}
 	
 	for _, issue := range searchResponse.Issues {
-		comments, err := client.GetUserCommentsToday(ctx, issue.Key, userInfo.AccountID, today)
+		allComments, err := client.GetIssueComments(ctx, issue.Key)
 		if err != nil {
 			color.Yellow("Warning: Failed to fetch comments for %s: %v", issue.Key, err)
-			comments = []jira.Comment{} // Continue without comments for this issue
+			allComments = []jira.Comment{} // Continue without comments for this issue
+		}
+		
+		// Filter comments to only include today's comments by the current user
+		var todaysComments []jira.Comment
+		for _, comment := range allComments {
+			if comment.Author.AccountID == userInfo.AccountID && 
+			   comment.Created.Time.After(today) {
+				todaysComments = append(todaysComments, comment)
+			}
 		}
 		
 		issuesWithComments = append(issuesWithComments, IssueWithComments{
 			Issue:    issue,
-			Comments: comments,
+			Comments: todaysComments,
 		})
 	}
 	

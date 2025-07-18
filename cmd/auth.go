@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/exec"
-	"runtime"
 	"time"
 
 	"github.com/fatih/color"
@@ -17,11 +15,14 @@ import (
 // authCmd represents the auth command
 var authCmd = &cobra.Command{
 	Use:   "auth",
-	Short: "Authenticate with Jira",
-	Long: `Authenticate establishes OAuth connection with your Jira instance.
+	Short: "Authenticate with Jira using API token",
+	Long: `Authenticate with Jira using API token (recommended for CLI usage).
 
-This will open your browser to complete the OAuth flow and store
-authentication tokens securely for future use.`,
+Create an API token:
+1. Go to https://id.atlassian.com/manage-profile/security/api-tokens
+2. Click "Create API token"
+3. Give it a name and copy the generated token
+4. Use this command: my-day auth --email your-email@example.com --token your-api-token`,
 	Run: func(cmd *cobra.Command, args []string) {
 		if err := authenticateWithJira(cmd); err != nil {
 			color.Red("Authentication failed: %v", err)
@@ -36,7 +37,11 @@ func init() {
 	// Auth-specific flags
 	authCmd.Flags().Bool("clear", false, "Clear existing authentication")
 	authCmd.Flags().Bool("test", false, "Test existing authentication")
-	authCmd.Flags().Bool("no-browser", false, "Don't automatically open browser")
+	authCmd.Flags().String("email", "", "Email address for API token authentication (required)")
+	authCmd.Flags().String("token", "", "API token for authentication (required)")
+	
+	// Mark email and token as required when not using clear or test
+	authCmd.MarkFlagsRequiredTogether("email", "token")
 }
 
 func authenticateWithJira(cmd *cobra.Command) error {
@@ -49,24 +54,11 @@ func authenticateWithJira(cmd *cobra.Command) error {
 	if cfg.Jira.BaseURL == "" {
 		return fmt.Errorf("Jira base URL not configured. Run 'my-day init' first")
 	}
-	if cfg.Jira.OAuth.ClientID == "" {
-		return fmt.Errorf("Jira OAuth client ID not configured")
-	}
-	if cfg.Jira.OAuth.ClientSecret == "" {
-		return fmt.Errorf("Jira OAuth client secret not configured")
-	}
 
-	client := jira.NewClient(
-		cfg.Jira.BaseURL,
-		cfg.Jira.OAuth.ClientID,
-		cfg.Jira.OAuth.ClientSecret,
-		cfg.Jira.OAuth.RedirectURI,
-	)
-
-	authManager := client.GetAuthManager()
-
-	// Handle flags
+	// Handle clear flag
 	if clear, _ := cmd.Flags().GetBool("clear"); clear {
+		// Create a temporary auth manager to clear auth
+		authManager := jira.NewAuthManager("", "")
 		if err := authManager.ClearAuth(); err != nil {
 			return fmt.Errorf("failed to clear authentication: %w", err)
 		}
@@ -74,65 +66,49 @@ func authenticateWithJira(cmd *cobra.Command) error {
 		return nil
 	}
 
+	// Handle test flag
 	if test, _ := cmd.Flags().GetBool("test"); test {
+		// Create a temporary auth manager to test auth
+		authManager := jira.NewAuthManager("", "")
+		if !authManager.IsAuthenticated() {
+			return fmt.Errorf("no authentication found. Run 'my-day auth --email your-email --token your-token' first")
+		}
+		
+		// Test with a real client
+		apiToken, err := authManager.LoadAPIToken()
+		if err != nil {
+			return fmt.Errorf("failed to load API token: %w", err)
+		}
+		
+		client := jira.NewClient(cfg.Jira.BaseURL, apiToken.Email, apiToken.Token)
 		return testAuthentication(client)
 	}
 
-	// Check if already authenticated
-	ctx := context.Background()
-	if authManager.IsAuthenticated(ctx) {
-		color.Yellow("Already authenticated with Jira")
-		if err := testAuthentication(client); err != nil {
-			color.Yellow("Authentication appears invalid, re-authenticating...")
-		} else {
-			color.Green("✓ Authentication is valid")
-			return nil
-		}
+	// Get email and token from flags
+	email, _ := cmd.Flags().GetString("email")
+	token, _ := cmd.Flags().GetString("token")
+
+	if email == "" || token == "" {
+		return fmt.Errorf("email and token are required. Use --email and --token flags")
 	}
 
-	color.Cyan("🔐 Starting Jira OAuth authentication...")
-	color.White("This will open your browser to complete the OAuth flow.")
+	// Create client and save credentials
+	color.Cyan("🔑 Configuring API token authentication...")
+	client := jira.NewClient(cfg.Jira.BaseURL, email, token)
 
-	// Start local server for OAuth callback
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-	defer cancel()
-
-	tokenChan, errChan := authManager.StartAuthServer(ctx)
-
-	// Generate and display auth URL
-	authURL := authManager.GetAuthURL()
-	color.White("\nAuthentication URL: %s", authURL)
-
-	// Open browser automatically unless disabled
-	if noBrowser, _ := cmd.Flags().GetBool("no-browser"); !noBrowser {
-		color.White("Opening browser automatically...")
-		if err := openBrowser(authURL); err != nil {
-			color.Yellow("Failed to open browser automatically: %v", err)
-			color.White("Please open the URL above manually")
-		}
+	// Save the API token
+	if err := client.GetAuthManager().SaveAPIToken(); err != nil {
+		return fmt.Errorf("failed to save API token: %w", err)
 	}
 
-	color.White("\nWaiting for authentication...")
+	color.Green("✓ API token authentication configured!")
 
-	select {
-	case token := <-tokenChan:
-		if err := authManager.SaveToken(token); err != nil {
-			return fmt.Errorf("failed to save authentication token: %w", err)
-		}
-		color.Green("✓ Authentication successful!")
-		
-		// Test the connection
-		if err := testAuthentication(client); err != nil {
-			color.Yellow("Warning: Authentication succeeded but connection test failed: %v", err)
-		} else {
-			color.Green("✓ Connection to Jira verified")
-		}
-
-	case err := <-errChan:
-		return fmt.Errorf("authentication failed: %w", err)
-		
-	case <-ctx.Done():
-		return fmt.Errorf("authentication timed out")
+	// Test the connection
+	if err := testAuthentication(client); err != nil {
+		color.Yellow("Warning: Authentication saved but connection test failed: %v", err)
+		color.Yellow("Please verify your Jira base URL and API token are correct")
+	} else {
+		color.Green("✓ Connection to Jira verified")
 	}
 
 	return nil
@@ -147,21 +123,4 @@ func testAuthentication(client *jira.Client) error {
 	}
 
 	return nil
-}
-
-func openBrowser(url string) error {
-	var cmd string
-	var args []string
-
-	switch runtime.GOOS {
-	case "windows":
-		cmd = "cmd"
-		args = []string{"/c", "start"}
-	case "darwin":
-		cmd = "open"
-	default: // "linux", "freebsd", "openbsd", "netbsd"
-		cmd = "xdg-open"
-	}
-	args = append(args, url)
-	return exec.Command(cmd, args...).Start()
 }

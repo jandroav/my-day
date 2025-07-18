@@ -20,7 +20,7 @@ A colorful Golang CLI tool that helps DevOps team members track Jira tickets acr
 ## ✨ Features
 
 - 🎯 **Multi-team Support**: Track tickets across DevOps, Interop, Foundation, Enterprise, and LBIO teams
-- 🔐 **OAuth 2.0 Integration**: Secure authentication with Jira Cloud
+- 🔐 **Simple Authentication**: Secure API token authentication with Jira Cloud (recommended by Atlassian)
 - 📊 **Daily Reports**: Generate colorful console or markdown reports for standups
 - ⚙️ **Flexible Configuration**: YAML config, CLI flags, and environment variables
 - 🚀 **Fast & Offline**: Local caching for quick report generation
@@ -79,33 +79,36 @@ my-day init
 
 This creates `~/.my-day/config.yaml` with default settings.
 
-### 2. Configure Jira OAuth
+### 2. Configure Jira Base URL
 
-Edit your configuration file to add your Jira details:
+Edit your configuration file to add your Jira URL:
 
 ```yaml
 jira:
   base_url: "https://your-company.atlassian.net"
-  oauth:
-    client_id: "your-oauth-client-id"
-    client_secret: "your-oauth-client-secret"
 ```
 
-### 3. Authenticate
+### 3. Create API Token
+
+1. Go to https://id.atlassian.com/manage-profile/security/api-tokens
+2. Click "Create API token"
+3. Give it a name (e.g., "my-day CLI") and copy the token
+
+### 4. Authenticate
 
 ```bash
-my-day auth
+my-day auth --email your-email@example.com --token your-api-token
 ```
 
-This opens your browser to complete OAuth authentication.
+This saves your credentials for future use.
 
-### 4. Sync Your Tickets
+### 5. Sync Your Tickets
 
 ```bash
 my-day sync
 ```
 
-### 5. Generate Daily Report
+### 6. Generate Daily Report
 
 ```bash
 my-day report
@@ -127,9 +130,6 @@ Available on all commands:
 | `-v, --verbose` | Enable verbose output | `false` |
 | `-q, --quiet` | Enable quiet output | `false` |
 | `--jira-url` | Jira base URL | - |
-| `--jira-client-id` | Jira OAuth client ID | - |
-| `--jira-client-secret` | Jira OAuth client secret | - |
-| `--jira-redirect-uri` | OAuth redirect URI | `http://localhost:8080/callback` |
 | `--projects` | Jira project keys (comma-separated) | - |
 | `--llm-mode` | LLM mode (embedded\|ollama\|disabled) | `embedded` |
 | `--llm-model` | LLM model name | `tinyllama` |
@@ -161,7 +161,7 @@ my-day init --force
 ```
 
 #### 2. `my-day auth`
-Authenticate with Jira OAuth
+Authenticate with Jira using API token
 
 **Usage:**
 ```bash
@@ -169,16 +169,16 @@ my-day auth [flags]
 ```
 
 **Flags:**
+- `--email` - Email address for API token authentication (required)
+- `--token` - API token for authentication (required)
 - `--clear` - Clear existing authentication
 - `--test` - Test existing authentication
-- `--no-browser` - Don't automatically open browser
 
 **Examples:**
 ```bash
-my-day auth
+my-day auth --email your-email@example.com --token your-api-token
 my-day auth --clear
 my-day auth --test
-my-day auth --no-browser
 ```
 
 #### 3. `my-day sync`
@@ -307,9 +307,6 @@ All configuration can be overridden using environment variables with the `MY_DAY
 | Environment Variable | Description | Default |
 |---------------------|-------------|---------|
 | `MY_DAY_JIRA_BASE_URL` | Jira base URL | - |
-| `MY_DAY_JIRA_OAUTH_CLIENT_ID` | Jira OAuth client ID | - |
-| `MY_DAY_JIRA_OAUTH_CLIENT_SECRET` | Jira OAuth client secret | - |
-| `MY_DAY_JIRA_OAUTH_REDIRECT_URI` | OAuth redirect URI | `http://localhost:8080/callback` |
 | `MY_DAY_JIRA_PROJECTS` | Comma-separated project keys | - |
 | `MY_DAY_LLM_MODE` | LLM mode | `embedded` |
 | `MY_DAY_LLM_MODEL` | LLM model name | `tinyllama` |
@@ -341,10 +338,6 @@ Default location: `~/.my-day/config.yaml`
 ```yaml
 jira:
   base_url: "https://your-instance.atlassian.net"
-  oauth:
-    client_id: "your-oauth-client-id"
-    client_secret: "your-oauth-client-secret"
-    redirect_uri: "http://localhost:8080/callback"
   projects:
     - key: "DEVOPS"
       name: "DevOps Team"
@@ -390,7 +383,6 @@ All settings support environment variables with `MY_DAY_` prefix:
 
 ```bash
 export MY_DAY_JIRA_BASE_URL="https://company.atlassian.net"
-export MY_DAY_JIRA_CLIENT_ID="abc123"
 export MY_DAY_LLM_MODE="disabled"
 ```
 
@@ -519,8 +511,9 @@ my-day report --debug --show-quality --output "standup-$(date +%Y-%m-%d).md"
 ```bash
 # In your CI/CD pipeline
 export MY_DAY_JIRA_BASE_URL="https://company.atlassian.net"
-export MY_DAY_JIRA_OAUTH_CLIENT_ID="$JIRA_CLIENT_ID"
-export MY_DAY_JIRA_OAUTH_CLIENT_SECRET="$JIRA_CLIENT_SECRET"
+
+# Note: For CI/CD, you'll need to authenticate once locally and copy the auth.json file
+# or use a dedicated service account with API token
 
 # Generate deployment report
 my-day sync --projects DEVOPS --since 24h
@@ -594,14 +587,16 @@ LLM Processing Report:
   • Quality Score: 85/100
 ```
 
-## Jira OAuth Setup
+## Jira API Token Setup
 
 **Quick Setup:**
-1. Go to [Atlassian Developer Console](https://developer.atlassian.com/console/myapps/)
-2. Create OAuth 2.0 app with redirect URI: `http://localhost:8080/callback`
-3. Add scopes: `read:jira-user`, `read:jira-work`
-4. Copy Client ID and Secret to your config
-5. Run `my-day auth` to authenticate
+1. Go to [Atlassian Account Security](https://id.atlassian.com/manage-profile/security/api-tokens)
+2. Click "Create API token"
+3. Give it a name (e.g., "my-day CLI")
+4. Copy the generated token
+5. Run `my-day auth --email your-email@example.com --token your-api-token`
+
+**Why API tokens?** Atlassian recommends API tokens for CLI tools as they're more secure and don't require complex OAuth app setup.
 
 **📋 For detailed setup instructions, see [Jira Setup Guide](docs/jira-setup.md)**
 
@@ -736,20 +731,20 @@ my-day config edit
 
 #### Authentication Issues
 
-**Problem**: OAuth authentication fails
+**Problem**: API token authentication fails
 ```bash
 # Test current authentication
 my-day auth --test
 
 # Clear and re-authenticate
 my-day auth --clear
-my-day auth
+my-day auth --email your-email@example.com --token your-api-token
 ```
 
-**Problem**: Token expired
+**Problem**: Token expired or invalid
 ```bash
-# Re-authenticate
-my-day auth
+# Re-authenticate with new token
+my-day auth --email your-email@example.com --token your-new-api-token
 ```
 
 #### Sync Issues
@@ -809,11 +804,11 @@ my-day config show | grep ollama
 
 ### FAQ
 
-#### Q: How do I set up Jira OAuth?
-A: Follow the [Jira OAuth Setup](#jira-oauth-setup) section. You'll need to create an OAuth app in Atlassian Developer Console.
+#### Q: How do I set up Jira authentication?
+A: Follow the [Jira API Token Setup](#jira-api-token-setup) section. You'll need to create an API token in your Atlassian account.
 
 #### Q: Can I use this with Jira Server (on-premises)?
-A: Currently, my-day only supports Jira Cloud with OAuth 2.0. Jira Server support is planned for future releases.
+A: Currently, my-day only supports Jira Cloud with API token authentication. Jira Server support is planned for future releases.
 
 #### Q: How do I add custom projects?
 A: Edit your config file or use environment variables:
@@ -836,7 +831,7 @@ A:
 - Enable debug mode to see quality metrics
 
 #### Q: Can I run this in CI/CD?
-A: Yes! Use environment variables for authentication and configuration. See [Automation & Scripting](#automation--scripting) examples.
+A: Yes! You can copy the auth.json file or use a dedicated service account with API token. See [Automation & Scripting](#automation--scripting) examples.
 
 #### Q: How do I backup my configuration?
 A: Copy the config file:
@@ -853,10 +848,10 @@ cp ~/.my-day/config.yaml ~/.my-day/config.yaml.backup
 
 ### Security Notes
 
-- OAuth tokens are stored locally in `~/.my-day/auth.json`
-- Configuration files may contain sensitive information
-- Use environment variables in CI/CD instead of config files
-- Regularly rotate OAuth credentials
+- API tokens are stored locally in `~/.my-day/auth.json`
+- Configuration files no longer contain sensitive information
+- API tokens can be easily revoked from your Atlassian account
+- Regularly rotate API tokens for security
 
 ## 🛠️ Development
 

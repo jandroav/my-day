@@ -230,11 +230,11 @@ type AuthResponse struct {
 
 // AuthInfo represents stored authentication information
 type AuthInfo struct {
-	AccessToken  string    `json:"access_token"`
-	RefreshToken string    `json:"refresh_token"`
-	ExpiresAt    time.Time `json:"expires_at"`
-	TokenType    string    `json:"token_type"`
+	AuthType  string         `json:"auth_type"` // always "token"
+	APIToken  *APITokenAuth  `json:"api_token"`
+	ExpiresAt time.Time      `json:"expires_at"`
 }
+
 
 // WorklogEntry represents a worklog entry
 type WorklogEntry struct {

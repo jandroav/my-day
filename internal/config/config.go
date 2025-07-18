@@ -14,15 +14,7 @@ type Config struct {
 // JiraConfig represents Jira configuration
 type JiraConfig struct {
 	BaseURL  string        `mapstructure:"base_url" yaml:"base_url"`
-	OAuth    OAuthConfig   `mapstructure:"oauth" yaml:"oauth"`
 	Projects []ProjectInfo `mapstructure:"projects" yaml:"projects"`
-}
-
-// OAuthConfig represents OAuth configuration
-type OAuthConfig struct {
-	ClientID     string `mapstructure:"client_id" yaml:"client_id"`
-	ClientSecret string `mapstructure:"client_secret" yaml:"client_secret"`
-	RedirectURI  string `mapstructure:"redirect_uri" yaml:"redirect_uri"`
 }
 
 // ProjectInfo represents a Jira project
