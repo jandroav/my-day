@@ -72,6 +72,11 @@ This opens your browser to complete OAuth authentication.
 | `auth` | Authenticate with Jira OAuth |
 | `sync` | Pull latest tickets from Jira |
 | `report` | Generate daily standup report |
+| `report --debug` | Generate report with debug information |
+| `report --show-quality` | Generate report with quality indicators |
+| `report --verbose` | Generate report with verbose LLM processing |
+| `llm status` | Check LLM configuration and connectivity |
+| `llm test` | Test LLM summarization functionality |
 | `config` | Manage configuration settings |
 | `version` | Show version information |
 
@@ -99,6 +104,14 @@ llm:
   enabled: true
   mode: "embedded"  # embedded, ollama, disabled
   model: "tinyllama"
+  # Enhanced LLM Configuration
+  config:
+    debug: false                     # Enable debug logging
+    summary_style: "technical"       # technical, business, brief
+    max_summary_length: 200         # Maximum summary length
+    include_technical_details: true  # Include technical terms
+    prioritize_recent_work: true     # Focus on recent activity
+    fallback_strategy: "graceful"    # Error handling strategy
   ollama:
     base_url: "http://localhost:11434"
     model: "llama3.1"
@@ -173,6 +186,67 @@ Output:
 ./my-day report --projects DEVOPS,INTEROP --no-llm
 ```
 
+### Enhanced Report Features
+
+**Debug Mode**: Get detailed processing information
+```bash
+./my-day report --debug
+```
+
+**Quality Indicators**: View summary quality metrics
+```bash
+./my-day report --show-quality
+```
+
+**Verbose Mode**: See detailed LLM processing steps
+```bash
+./my-day report --verbose
+```
+
+**Combined Enhanced Mode**: Full diagnostic output
+```bash
+./my-day report --debug --show-quality --verbose
+```
+
+Example enhanced output:
+```
+🚀 Daily Standup Report - January 15, 2025
+==================================================
+
+🤖 AI SUMMARY OF TODAY'S WORK (Enhanced)
+Completed AWS Lambda deployment using Terraform configuration. VPC security groups updated and Kubernetes ingress configured. Database migration scripts tested successfully.
+
+🔑 Key Activities:
+  • Terraform infrastructure deployment
+  • AWS security configuration
+  • Kubernetes service setup
+  • Database migration testing
+
+📊 SUMMARY QUALITY INDICATORS
+------------------------------
+Overall Quality Score: 85/100
+
+Quality Factors:
+  ✓ Appropriate length
+  ✓ Contains meaningful content
+  ✓ Contains 4 technical terms
+  ✓ Complete data available
+
+🔍 LLM DEBUG INFORMATION
+==================================================
+Configuration:
+  • LLM Mode: embedded
+  • Model: enhanced-embedded
+  • Debug Mode: true
+  • Show Quality: true
+
+LLM Processing Report:
+  • Session ID: abc123
+  • Processing Steps: 8
+  • Success Rate: 100%
+  • Quality Score: 85/100
+```
+
 ## Jira OAuth Setup
 
 **Quick Setup:**
@@ -189,6 +263,12 @@ Output:
 ### Embedded Mode (Default)
 
 Uses a lightweight embedded model for basic ticket summarization. No additional setup required.
+
+**Enhanced Features:**
+- **Technical Pattern Matching**: Recognizes DevOps terminology (AWS, Terraform, Kubernetes, etc.)
+- **Intelligent Summarization**: Context-aware comment analysis
+- **Debug Mode**: Detailed processing information with `--debug` flag
+- **Quality Indicators**: Summary quality scoring with `--show-quality` flag
 
 ### Ollama Mode
 
@@ -212,6 +292,56 @@ llm:
 llm:
   enabled: false
 ```
+
+### Enhanced LLM Features
+
+Generate reports with enhanced analysis:
+
+```bash
+# Debug mode with detailed processing info
+./my-day report --debug
+
+# Show summary quality indicators
+./my-day report --show-quality
+
+# Verbose processing with enhanced context
+./my-day report --verbose --debug --show-quality
+```
+
+### LLM Troubleshooting
+
+**Problem**: LLM summarization not working
+- **Solution**: Check LLM configuration and run `./my-day llm status`
+
+**Problem**: Poor summary quality
+- **Solution**: Enable debug mode to see processing details: `./my-day report --debug --show-quality`
+
+**Problem**: Ollama connection issues
+- **Solution**: Verify Ollama is running: `curl http://localhost:11434/api/tags`
+
+**Problem**: Summaries too generic
+- **Solution**: Add more detailed comments to Jira tickets with technical terms
+
+**Problem**: Missing technical context
+- **Solution**: Include keywords like "terraform", "aws", "kubernetes" in comments
+
+**Examples of Good vs Poor LLM Summaries**:
+
+**Good Summary** (detailed, technical):
+```
+Completed AWS Lambda deployment using Terraform. VPC security groups updated and tested in staging environment. Database migration scripts ready for production.
+```
+
+**Poor Summary** (generic):
+```
+Recent activity: 3 issues, 5 comments
+```
+
+**Tips for Better Summaries**:
+- Use specific technical terms in Jira comments
+- Include deployment status and environments
+- Mention specific actions taken (deployed, configured, tested)
+- Reference infrastructure components and tools used
 
 ## Development
 
