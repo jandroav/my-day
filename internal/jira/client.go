@@ -67,6 +67,11 @@ func (t *apiTokenTransport) RoundTrip(req *http.Request) (*http.Response, error)
 
 // SearchIssues searches for issues using JQL
 func (c *Client) SearchIssues(ctx context.Context, jql string, maxResults int) (*SearchResponse, error) {
+	return c.SearchIssuesWithFields(ctx, jql, maxResults, []string{})
+}
+
+// SearchIssuesWithFields searches for issues using JQL with additional custom fields
+func (c *Client) SearchIssuesWithFields(ctx context.Context, jql string, maxResults int, additionalFields []string) (*SearchResponse, error) {
 	client, err := c.getAuthenticatedClient(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("authentication required: %w", err)
@@ -75,10 +80,17 @@ func (c *Client) SearchIssues(ctx context.Context, jql string, maxResults int) (
 	// Build search URL using direct Jira instance URL
 	searchURL := fmt.Sprintf("%s/rest/api/3/search", c.baseURL)
 	
+	// Build fields list - include standard fields plus any additional custom fields
+	standardFields := "summary,description,status,priority,issuetype,project,assignee,reporter,created,updated,resolution,labels"
+	fields := standardFields
+	if len(additionalFields) > 0 {
+		fields += "," + strings.Join(additionalFields, ",")
+	}
+	
 	params := url.Values{
 		"jql":        {jql},
 		"maxResults": {fmt.Sprintf("%d", maxResults)},
-		"fields":     {"summary,description,status,priority,issuetype,project,assignee,reporter,created,updated,resolution,labels"},
+		"fields":     {fields},
 	}
 
 	req, err := http.NewRequestWithContext(ctx, "GET", searchURL+"?"+params.Encode(), nil)
@@ -108,6 +120,11 @@ func (c *Client) SearchIssues(ctx context.Context, jql string, maxResults int) (
 
 // GetIssuesByProjects retrieves issues for specific projects
 func (c *Client) GetIssuesByProjects(ctx context.Context, projectKeys []string, maxResults int) (*SearchResponse, error) {
+	return c.GetIssuesByProjectsWithFields(ctx, projectKeys, maxResults, []string{})
+}
+
+// GetIssuesByProjectsWithFields retrieves issues for specific projects with additional custom fields
+func (c *Client) GetIssuesByProjectsWithFields(ctx context.Context, projectKeys []string, maxResults int, additionalFields []string) (*SearchResponse, error) {
 	if len(projectKeys) == 0 {
 		return &SearchResponse{Issues: []Issue{}}, nil
 	}
@@ -116,7 +133,7 @@ func (c *Client) GetIssuesByProjects(ctx context.Context, projectKeys []string, 
 	projectFilter := strings.Join(projectKeys, ",")
 	jql := fmt.Sprintf("project in (%s) ORDER BY updated DESC", projectFilter)
 
-	return c.SearchIssues(ctx, jql, maxResults)
+	return c.SearchIssuesWithFields(ctx, jql, maxResults, additionalFields)
 }
 
 // GetMyWorklog retrieves worklog entries for the current user
@@ -189,6 +206,11 @@ func (c *Client) getCurrentUser(ctx context.Context) (*User, error) {
 
 // GetMyIssuesWithTodaysComments retrieves issues where the current user added comments recently
 func (c *Client) GetMyIssuesWithTodaysComments(ctx context.Context, projectKeys []string, maxResults int, since time.Time) (*SearchResponse, error) {
+	return c.GetMyIssuesWithTodaysCommentsWithFields(ctx, projectKeys, maxResults, since, []string{})
+}
+
+// GetMyIssuesWithTodaysCommentsWithFields retrieves issues where the current user added comments recently with additional custom fields
+func (c *Client) GetMyIssuesWithTodaysCommentsWithFields(ctx context.Context, projectKeys []string, maxResults int, since time.Time, additionalFields []string) (*SearchResponse, error) {
 	var jqlParts []string
 	
 	// Add project filter if specified
@@ -204,7 +226,7 @@ func (c *Client) GetMyIssuesWithTodaysComments(ctx context.Context, projectKeys 
 	jql := strings.Join(jqlParts, " AND ")
 	jql += " ORDER BY updated DESC"
 
-	return c.SearchIssues(ctx, jql, maxResults)
+	return c.SearchIssuesWithFields(ctx, jql, maxResults, additionalFields)
 }
 
 // GetIssueComments retrieves comments for a specific issue

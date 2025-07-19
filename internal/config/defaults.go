@@ -17,18 +17,18 @@ func SetDefaults() {
 		{"key": "LBIO", "name": "LBIO Team"},
 	})
 
-	// LLM defaults
+	// LLM defaults (Docker-based by default for better summarization)
 	viper.SetDefault("llm.enabled", true)
-	viper.SetDefault("llm.mode", "embedded")
-	viper.SetDefault("llm.model", "tinyllama")
+	viper.SetDefault("llm.mode", "ollama")
+	viper.SetDefault("llm.model", "qwen2.5:3b")
 	viper.SetDefault("llm.debug", false)
 	viper.SetDefault("llm.summary_style", "technical")
-	viper.SetDefault("llm.max_summary_length", 200)
+	viper.SetDefault("llm.max_summary_length", 0) // No limit for better summaries
 	viper.SetDefault("llm.include_technical_details", true)
 	viper.SetDefault("llm.prioritize_recent_work", true)
 	viper.SetDefault("llm.fallback_strategy", "graceful")
 	viper.SetDefault("llm.ollama.base_url", "http://localhost:11434")
-	viper.SetDefault("llm.ollama.model", "llama3.1")
+	viper.SetDefault("llm.ollama.model", "qwen2.5:3b")
 
 	// Report defaults
 	viper.SetDefault("report.format", "console")

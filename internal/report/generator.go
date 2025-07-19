@@ -39,6 +39,7 @@ type Config struct {
 	Debug             bool
 	ShowQuality       bool
 	Verbose           bool
+	GroupByField      string
 	ExportEnabled     bool
 	ExportFolderPath  string
 	ExportFileDate    string
@@ -104,6 +105,10 @@ func (g *Generator) GenerateWithComments(issuesWithComments []IssueWithComments,
 	commentsMap := make(map[string][]jira.Comment)
 	for _, iwc := range issuesWithComments {
 		commentsMap[iwc.Issue.Key] = iwc.Comments
+	}
+
+	if g.config.GroupByField != "" {
+		return g.generateFieldGroupedReport(filteredIssues, commentsMap, filteredWorklogs, targetDate, g.config.GroupByField)
 	}
 
 	switch g.config.Format {
@@ -1399,4 +1404,286 @@ func (g *Generator) generateObsidianMarkdown(reportContent string, targetDate ti
 	content.WriteString("*This section will be automatically populated by Obsidian's backlinks*\n")
 
 	return content.String()
+}
+
+// generateFieldGroupedReport creates a report grouped by the specified custom field
+func (g *Generator) generateFieldGroupedReport(issues []jira.Issue, commentsMap map[string][]jira.Comment, worklogs []jira.WorklogEntry, targetDate time.Time, fieldName string) (string, error) {
+	// Group issues by the specified field value
+	fieldGroups := g.groupIssuesByField(issues, fieldName)
+	
+	switch g.config.Format {
+	case "markdown":
+		return g.generateMarkdownFieldGrouped(fieldGroups, commentsMap, worklogs, targetDate, fieldName)
+	default:
+		return g.generateConsoleFieldGrouped(fieldGroups, commentsMap, worklogs, targetDate, fieldName)
+	}
+}
+
+// groupIssuesByField groups issues by the value of the specified custom field
+func (g *Generator) groupIssuesByField(issues []jira.Issue, fieldName string) map[string][]jira.Issue {
+	groups := make(map[string][]jira.Issue)
+	
+	for _, issue := range issues {
+		fieldValue := g.getFieldValueByName(issue, fieldName)
+		if fieldValue == "" {
+			fieldValue = "Unassigned"
+		}
+		groups[fieldValue] = append(groups[fieldValue], issue)
+	}
+	
+	return groups
+}
+
+// getFieldValueByName gets the value of a field by its configured name
+func (g *Generator) getFieldValueByName(issue jira.Issue, fieldName string) string {
+	// Try to find the field ID from configuration
+	// For now, we'll use a simple heuristic to find common field mappings
+	fieldMapping := map[string]string{
+		"squad":     "customfield_12944", // Common Squad field
+		"team":      "customfield_12945", // Common Team field
+		"component": "customfield_12946", // Common Component field
+		"epic":      "customfield_10014", // Common Epic Link field
+		"sprint":    "customfield_10007", // Common Sprint field
+	}
+	
+	if fieldID, exists := fieldMapping[strings.ToLower(fieldName)]; exists {
+		return issue.Fields.GetCustomFieldValue(fieldID)
+	}
+	
+	// If no mapping found, try the field name as-is (might be a field ID)
+	if strings.HasPrefix(fieldName, "customfield_") {
+		return issue.Fields.GetCustomFieldValue(fieldName)
+	}
+	
+	// Try as a standard field
+	switch strings.ToLower(fieldName) {
+	case "project":
+		return issue.Fields.Project.Name
+	case "priority":
+		return issue.Fields.Priority.Name
+	case "status":
+		return issue.Fields.Status.Name
+	case "issuetype", "issue_type":
+		return issue.Fields.IssueType.Name
+	case "assignee":
+		if issue.Fields.Assignee != nil {
+			return issue.Fields.Assignee.DisplayName
+		}
+		return "Unassigned"
+	case "reporter":
+		return issue.Fields.Reporter.DisplayName
+	}
+	
+	return ""
+}
+
+// generateConsoleFieldGrouped generates console output grouped by field
+func (g *Generator) generateConsoleFieldGrouped(fieldGroups map[string][]jira.Issue, commentsMap map[string][]jira.Comment, worklogs []jira.WorklogEntry, targetDate time.Time, fieldName string) (string, error) {
+	var report strings.Builder
+	
+	// Header
+	report.WriteString(fmt.Sprintf("🚀 Daily Standup Report - %s\n", targetDate.Format("January 2, 2006")))
+	report.WriteString(strings.Repeat("=", 50) + "\n")
+	report.WriteString(fmt.Sprintf("📝 Issues grouped by %s\n\n", strings.Title(fieldName)))
+
+	// AI Summary if enabled
+	if g.config.LLMEnabled {
+		allComments := []jira.Comment{}
+		for _, comments := range commentsMap {
+			allComments = append(allComments, comments...)
+		}
+		
+		var allIssues []jira.Issue
+		for _, groupIssues := range fieldGroups {
+			allIssues = append(allIssues, groupIssues...)
+		}
+		
+		if len(allComments) > 0 {
+			summary, err := g.summarizer.GenerateStandupSummaryWithComments(allIssues, allComments, worklogs)
+			if err == nil && summary != "" {
+				report.WriteString("🤖 AI SUMMARY OF TODAY'S WORK\n")
+				report.WriteString(fmt.Sprintf("%s\n\n", summary))
+			}
+		}
+	}
+
+	// Summary
+	totalIssues := 0
+	for _, groupIssues := range fieldGroups {
+		totalIssues += len(groupIssues)
+	}
+	
+	totalComments := 0
+	for _, comments := range commentsMap {
+		totalComments += len(comments)
+	}
+	
+	report.WriteString("📊 SUMMARY\n")
+	report.WriteString(fmt.Sprintf("• Total issues: %d\n", totalIssues))
+	report.WriteString(fmt.Sprintf("• Groups by %s: %d\n", fieldName, len(fieldGroups)))
+	report.WriteString(fmt.Sprintf("• Total comments added: %d\n", totalComments))
+	report.WriteString(fmt.Sprintf("• Worklog entries: %d\n\n", len(worklogs)))
+
+	// Sort groups by name for consistent output
+	var groupNames []string
+	for groupName := range fieldGroups {
+		groupNames = append(groupNames, groupName)
+	}
+	sort.Strings(groupNames)
+
+	// Generate each group section
+	for _, groupName := range groupNames {
+		groupIssues := fieldGroups[groupName]
+		report.WriteString(fmt.Sprintf("🏷️  %s (%d issues)\n", strings.ToUpper(groupName), len(groupIssues)))
+		report.WriteString(strings.Repeat("-", 30) + "\n")
+		
+		// Group issues within each field group by status
+		statusGroups := groupIssuesByStatus(groupIssues)
+		
+		// In Progress section
+		if inProgress, exists := statusGroups["In Progress"]; exists && len(inProgress) > 0 {
+			report.WriteString("🔄 Currently Working On:\n")
+			for _, issue := range inProgress {
+				report.WriteString(g.formatIssueConsoleWithComments(issue, commentsMap[issue.Key]))
+			}
+		}
+
+		// Recently completed section
+		if done, exists := statusGroups["Done"]; exists && len(done) > 0 {
+			report.WriteString("✅ Recently Completed:\n")
+			for _, issue := range done {
+				report.WriteString(g.formatIssueConsoleWithComments(issue, commentsMap[issue.Key]))
+			}
+		}
+
+		// To Do section
+		if todo, exists := statusGroups["To Do"]; exists && len(todo) > 0 {
+			report.WriteString("📋 To Do:\n")
+			for _, issue := range todo {
+				report.WriteString(g.formatIssueConsoleWithComments(issue, commentsMap[issue.Key]))
+			}
+		}
+		
+		report.WriteString("\n")
+	}
+
+	// Worklog section
+	if len(worklogs) > 0 {
+		report.WriteString("⏰ WORK LOG\n")
+		for _, worklog := range worklogs {
+			report.WriteString(g.formatWorklogConsole(worklog))
+		}
+		report.WriteString("\n")
+	}
+
+	// Footer
+	report.WriteString("---\n")
+	report.WriteString("Generated by my-day CLI 🤖\n")
+
+	return report.String(), nil
+}
+
+// generateMarkdownFieldGrouped generates markdown output grouped by field
+func (g *Generator) generateMarkdownFieldGrouped(fieldGroups map[string][]jira.Issue, commentsMap map[string][]jira.Comment, worklogs []jira.WorklogEntry, targetDate time.Time, fieldName string) (string, error) {
+	var report strings.Builder
+	
+	// Header
+	report.WriteString(fmt.Sprintf("# Daily Standup Report - %s\n\n", targetDate.Format("January 2, 2006")))
+	report.WriteString(fmt.Sprintf("*Issues grouped by %s*\n\n", strings.Title(fieldName)))
+
+	// AI Summary if enabled
+	if g.config.LLMEnabled {
+		allComments := []jira.Comment{}
+		for _, comments := range commentsMap {
+			allComments = append(allComments, comments...)
+		}
+		
+		var allIssues []jira.Issue
+		for _, groupIssues := range fieldGroups {
+			allIssues = append(allIssues, groupIssues...)
+		}
+		
+		if len(allComments) > 0 {
+			summary, err := g.summarizer.GenerateStandupSummaryWithComments(allIssues, allComments, worklogs)
+			if err == nil && summary != "" {
+				report.WriteString("## 🤖 AI Summary of Today's Work\n\n")
+				report.WriteString(fmt.Sprintf("%s\n\n", summary))
+			}
+		}
+	}
+
+	// Summary
+	totalIssues := 0
+	for _, groupIssues := range fieldGroups {
+		totalIssues += len(groupIssues)
+	}
+	
+	totalComments := 0
+	for _, comments := range commentsMap {
+		totalComments += len(comments)
+	}
+	
+	report.WriteString("## Summary\n\n")
+	report.WriteString(fmt.Sprintf("- **Total issues**: %d\n", totalIssues))
+	report.WriteString(fmt.Sprintf("- **Groups by %s**: %d\n", fieldName, len(fieldGroups)))
+	report.WriteString(fmt.Sprintf("- **Total comments added**: %d\n", totalComments))
+	report.WriteString(fmt.Sprintf("- **Worklog entries**: %d\n\n", len(worklogs)))
+
+	// Sort groups by name for consistent output
+	var groupNames []string
+	for groupName := range fieldGroups {
+		groupNames = append(groupNames, groupName)
+	}
+	sort.Strings(groupNames)
+
+	// Generate each group section
+	for _, groupName := range groupNames {
+		groupIssues := fieldGroups[groupName]
+		report.WriteString(fmt.Sprintf("## 🏷️ %s (%d issues)\n\n", strings.Title(groupName), len(groupIssues)))
+		
+		// Group issues within each field group by status
+		statusGroups := groupIssuesByStatus(groupIssues)
+		
+		// In Progress section
+		if inProgress, exists := statusGroups["In Progress"]; exists && len(inProgress) > 0 {
+			report.WriteString("### 🔄 Currently Working On\n\n")
+			for _, issue := range inProgress {
+				report.WriteString(g.formatIssueMarkdownWithComments(issue, commentsMap[issue.Key]))
+			}
+			report.WriteString("\n")
+		}
+
+		// Recently completed section
+		if done, exists := statusGroups["Done"]; exists && len(done) > 0 {
+			report.WriteString("### ✅ Recently Completed\n\n")
+			for _, issue := range done {
+				report.WriteString(g.formatIssueMarkdownWithComments(issue, commentsMap[issue.Key]))
+			}
+			report.WriteString("\n")
+		}
+
+		// To Do section
+		if todo, exists := statusGroups["To Do"]; exists && len(todo) > 0 {
+			report.WriteString("### 📋 To Do\n\n")
+			for _, issue := range todo {
+				report.WriteString(g.formatIssueMarkdownWithComments(issue, commentsMap[issue.Key]))
+			}
+			report.WriteString("\n")
+		}
+	}
+
+	// Worklog section
+	if len(worklogs) > 0 {
+		report.WriteString("## ⏰ Work Log\n\n")
+		for _, worklog := range worklogs {
+			report.WriteString(g.formatWorklogMarkdown(worklog))
+		}
+		report.WriteString("\n")
+	}
+
+	// Footer
+	report.WriteString("---\n")
+	report.WriteString("*Generated by my-day CLI*\n")
+
+	return report.String(), nil
 }

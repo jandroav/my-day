@@ -116,18 +116,19 @@ func (jd JiraDescription) String() string {
 
 // Fields represents Jira issue fields
 type Fields struct {
-	Summary     string          `json:"summary"`
-	Description JiraDescription `json:"description"`
-	Status      Status          `json:"status"`
-	Priority    Priority    `json:"priority"`
-	IssueType   IssueType   `json:"issuetype"`
-	Project     Project     `json:"project"`
-	Assignee    *User       `json:"assignee"`
-	Reporter    User        `json:"reporter"`
-	Created     JiraTime    `json:"created"`
-	Updated     JiraTime    `json:"updated"`
-	Resolution  *Resolution `json:"resolution"`
-	Labels      []string    `json:"labels"`
+	Summary      string                    `json:"summary"`
+	Description  JiraDescription           `json:"description"`
+	Status       Status                    `json:"status"`
+	Priority     Priority                  `json:"priority"`
+	IssueType    IssueType                 `json:"issuetype"`
+	Project      Project                   `json:"project"`
+	Assignee     *User                     `json:"assignee"`
+	Reporter     User                      `json:"reporter"`
+	Created      JiraTime                  `json:"created"`
+	Updated      JiraTime                  `json:"updated"`
+	Resolution   *Resolution               `json:"resolution"`
+	Labels       []string                  `json:"labels"`
+	CustomFields map[string]*CustomField   `json:"-"` // Store all custom fields dynamically
 }
 
 // StatusCategory represents a status category that can have string or number ID
@@ -254,4 +255,89 @@ type Comment struct {
 	Body    JiraDescription `json:"body"`
 	Created JiraTime        `json:"created"`
 	Updated JiraTime        `json:"updated"`
+}
+
+// CustomField represents a Jira custom field that can have various value types
+type CustomField struct {
+	ID    string      `json:"id"`
+	Value interface{} `json:"value"`
+}
+
+// GetStringValue returns the string representation of the custom field value
+func (cf *CustomField) GetStringValue() string {
+	if cf.Value == nil {
+		return ""
+	}
+	
+	switch v := cf.Value.(type) {
+	case string:
+		return v
+	case map[string]interface{}:
+		// Handle complex objects like {id: "123", value: "Squad Name"}
+		if val, ok := v["value"].(string); ok {
+			return val
+		}
+		if val, ok := v["displayName"].(string); ok {
+			return val
+		}
+		if val, ok := v["name"].(string); ok {
+			return val
+		}
+		return ""
+	default:
+		return fmt.Sprintf("%v", v)
+	}
+}
+
+// UnmarshalJSON handles dynamic custom field unmarshaling for Fields
+func (f *Fields) UnmarshalJSON(data []byte) error {
+	// First unmarshal into a temporary map to capture all fields
+	var temp map[string]interface{}
+	if err := json.Unmarshal(data, &temp); err != nil {
+		return err
+	}
+	
+	// Initialize custom fields map
+	f.CustomFields = make(map[string]*CustomField)
+	
+	// Handle standard fields by unmarshaling the struct normally
+	type FieldsAlias Fields // Prevent infinite recursion
+	var alias FieldsAlias
+	if err := json.Unmarshal(data, &alias); err != nil {
+		return err
+	}
+	
+	// Copy standard fields
+	f.Summary = alias.Summary
+	f.Description = alias.Description
+	f.Status = alias.Status
+	f.Priority = alias.Priority
+	f.IssueType = alias.IssueType
+	f.Project = alias.Project
+	f.Assignee = alias.Assignee
+	f.Reporter = alias.Reporter
+	f.Created = alias.Created
+	f.Updated = alias.Updated
+	f.Resolution = alias.Resolution
+	f.Labels = alias.Labels
+	
+	// Extract custom fields (they start with "customfield_")
+	for key, value := range temp {
+		if strings.HasPrefix(key, "customfield_") && value != nil {
+			f.CustomFields[key] = &CustomField{
+				ID:    key,
+				Value: value,
+			}
+		}
+	}
+	
+	return nil
+}
+
+// GetCustomFieldValue returns the value of a custom field by field ID
+func (f *Fields) GetCustomFieldValue(fieldID string) string {
+	if cf, exists := f.CustomFields[fieldID]; exists {
+		return cf.GetStringValue()
+	}
+	return ""
 }

@@ -126,11 +126,9 @@ func syncTickets(cmd *cobra.Command) error {
 		return fmt.Errorf("failed to fetch issues: %w", err)
 	}
 
-	color.Green("✓ Found %d issues with your comments today", len(searchResponse.Issues))
+	color.Green("✓ Found %d updated issues to check for your comments", len(searchResponse.Issues))
 
-	// Fetch comments for each issue
-	commentsSince, _ := cmd.Flags().GetDuration("comments-since")
-	sinceTime := time.Now().Add(-commentsSince)
+	// Fetch comments for each issue (using the same sinceTime calculated above)
 	
 	color.White("Fetching your comments from the last %v...", commentsSince)
 	var issuesWithComments []IssueWithComments
@@ -186,7 +184,7 @@ func syncTickets(cmd *cobra.Command) error {
 		color.White("  Try adding a comment to a Jira ticket or use --comments-since to look further back.")
 		color.White("  Example: my-day sync --comments-since 72h")
 	} else {
-		color.Green("✓ Fetched comments for %d issues", len(issuesWithComments))
+		color.Green("✓ Found %d issues with your comments in the last %v", len(issuesWithComments), commentsSince)
 	}
 
 	// Fetch worklog if enabled
@@ -294,22 +292,12 @@ func showSyncSummary(cache *TicketCache) {
 
 	// Show recent updates
 	color.White("\nRecently Updated Issues:")
-	count := 0
 	for _, issue := range cache.Issues {
-		if count >= 5 {
-			break
-		}
-		
 		timeSince := time.Since(issue.Fields.Updated.Time)
 		color.White("  %s - %s (%v ago)", 
 			issue.Key, 
 			truncateString(issue.Fields.Summary, 50),
 			timeSince.Round(time.Hour))
-		count++
-	}
-
-	if len(cache.Issues) > 5 {
-		color.White("  ... and %d more", len(cache.Issues)-5)
 	}
 }
 

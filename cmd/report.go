@@ -39,6 +39,9 @@ func init() {
 	reportCmd.Flags().Bool("show-quality", false, "Show summary quality indicators")
 	reportCmd.Flags().Bool("verbose", false, "Show verbose LLM processing information")
 	
+	// Field grouping flags
+	reportCmd.Flags().String("field", "", "Group report by specified Jira custom field (e.g., 'squad', 'team', 'component')")
+	
 	// Export-specific flags
 	reportCmd.Flags().Bool("export", false, "Export report to markdown file")
 	reportCmd.Flags().String("export-folder", "", "Folder path for exported reports (overrides config)")
@@ -90,6 +93,7 @@ func generateReport(cmd *cobra.Command) error {
 	debug, _ := cmd.Flags().GetBool("debug")
 	showQuality, _ := cmd.Flags().GetBool("show-quality")
 	verbose, _ := cmd.Flags().GetBool("verbose")
+	groupByField, _ := cmd.Flags().GetString("field")
 	
 	// Export flags
 	exportEnabled, _ := cmd.Flags().GetBool("export")
@@ -122,6 +126,7 @@ func generateReport(cmd *cobra.Command) error {
 		Debug:             debug,
 		ShowQuality:       showQuality,
 		Verbose:           verbose,
+		GroupByField:      groupByField,
 		ExportEnabled:     cfg.Report.Export.Enabled,
 		ExportFolderPath:  cfg.Report.Export.FolderPath,
 		ExportFileDate:    cfg.Report.Export.FileNameDate,

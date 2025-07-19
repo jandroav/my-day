@@ -73,6 +73,25 @@ func NewOllamaClientWithConfig(config LLMConfig) *OllamaClient {
 	}
 }
 
+// NewOllamaClientWithDockerManagement creates an Ollama client with automatic Docker management
+func NewOllamaClientWithDockerManagement(config LLMConfig) (Summarizer, error) {
+	dockerManager := NewDockerLLMManager()
+	
+	// Try to ensure Docker LLM is ready
+	if err := dockerManager.EnsureReady(); err != nil {
+		// If Docker setup fails, fall back to embedded LLM with a warning
+		fmt.Printf("⚠️  Docker LLM setup failed (%v), falling back to embedded model\n", err)
+		return NewEmbeddedLLMWithConfig(config), nil
+	}
+	
+	// Use the Docker-managed Ollama instance
+	dockerConfig := config
+	dockerConfig.OllamaURL = dockerManager.GetBaseURL()
+	dockerConfig.OllamaModel = dockerManager.GetModel()
+	
+	return NewOllamaClientWithConfig(dockerConfig), nil
+}
+
 // SummarizeIssue generates a summary for a Jira issue using Ollama with fallback
 func (o *OllamaClient) SummarizeIssue(issue jira.Issue) (string, error) {
 	prompt := o.buildIssuePrompt(issue)

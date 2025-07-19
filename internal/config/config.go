@@ -13,16 +13,24 @@ type Config struct {
 
 // JiraConfig represents Jira configuration
 type JiraConfig struct {
-	BaseURL  string        `mapstructure:"base_url" yaml:"base_url"`
-	Email    string        `mapstructure:"email" yaml:"email"`
-	Token    string        `mapstructure:"token" yaml:"token"`
-	Projects []ProjectInfo `mapstructure:"projects" yaml:"projects"`
+	BaseURL      string                 `mapstructure:"base_url" yaml:"base_url"`
+	Email        string                 `mapstructure:"email" yaml:"email"`
+	Token        string                 `mapstructure:"token" yaml:"token"`
+	Projects     []ProjectInfo          `mapstructure:"projects" yaml:"projects"`
+	CustomFields map[string]CustomField `mapstructure:"custom_fields" yaml:"custom_fields"`
 }
 
 // ProjectInfo represents a Jira project
 type ProjectInfo struct {
 	Key  string `mapstructure:"key" yaml:"key"`
 	Name string `mapstructure:"name" yaml:"name"`
+}
+
+// CustomField represents a custom field configuration
+type CustomField struct {
+	FieldID     string `mapstructure:"field_id" yaml:"field_id"`
+	DisplayName string `mapstructure:"display_name" yaml:"display_name"`
+	FieldType   string `mapstructure:"field_type" yaml:"field_type"`
 }
 
 // LLMConfig represents LLM configuration

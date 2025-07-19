@@ -45,11 +45,15 @@ func NewSummarizer(config LLMConfig) (Summarizer, error) {
 	case "embedded":
 		return NewEmbeddedLLMWithConfig(config), nil
 	case "ollama":
-		return NewOllamaClientWithConfig(config), nil
+		// Auto-manage Docker container for better user experience
+		return NewOllamaClientWithDockerManagement(config)
+	case "docker":
+		// Explicit docker mode - same as ollama but with clear intent
+		return NewOllamaClientWithDockerManagement(config)
 	case "disabled":
 		return NewDisabledSummarizer(), nil
 	default:
-		return nil, fmt.Errorf("unknown LLM mode: %s", config.Mode)
+		return nil, fmt.Errorf("unknown LLM mode: %s (supported: embedded, ollama, docker, disabled)", config.Mode)
 	}
 }
 

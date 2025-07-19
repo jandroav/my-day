@@ -44,10 +44,36 @@ var llmStatusCmd = &cobra.Command{
 	},
 }
 
+var llmStartCmd = &cobra.Command{
+	Use:   "start",
+	Short: "Start Docker LLM container",
+	Long:  "Start the Docker LLM container for better summarization.",
+	Run: func(cmd *cobra.Command, args []string) {
+		if err := startDockerLLM(); err != nil {
+			color.Red("Failed to start Docker LLM: %v", err)
+			os.Exit(1)
+		}
+	},
+}
+
+var llmStopCmd = &cobra.Command{
+	Use:   "stop",
+	Short: "Stop Docker LLM container",
+	Long:  "Stop the Docker LLM container to free up resources.",
+	Run: func(cmd *cobra.Command, args []string) {
+		if err := stopDockerLLM(); err != nil {
+			color.Red("Failed to stop Docker LLM: %v", err)
+			os.Exit(1)
+		}
+	},
+}
+
 func init() {
 	rootCmd.AddCommand(llmCmd)
 	llmCmd.AddCommand(llmTestCmd)
 	llmCmd.AddCommand(llmStatusCmd)
+	llmCmd.AddCommand(llmStartCmd)
+	llmCmd.AddCommand(llmStopCmd)
 }
 
 func testLLMConnection() error {
@@ -213,4 +239,23 @@ func createTestIssue() jira.Issue {
 			},
 		},
 	}
+}
+
+func startDockerLLM() error {
+	color.Cyan("🐳 Starting Docker LLM...")
+	
+	dockerManager := llm.NewDockerLLMManager()
+	return dockerManager.EnsureReady()
+}
+
+func stopDockerLLM() error {
+	color.Cyan("🛑 Stopping Docker LLM...")
+	
+	dockerManager := llm.NewDockerLLMManager()
+	if err := dockerManager.StopContainer(); err != nil {
+		return err
+	}
+	
+	color.Green("✅ Docker LLM stopped successfully")
+	return nil
 }

@@ -262,6 +262,7 @@ my-day report [flags]
 - `--export` - Export report to Obsidian-compatible markdown file
 - `--export-folder` - Folder path for exported reports (overrides config)
 - `--export-tags` - Additional tags for exported report (overrides config)
+- `--field` - Group report by specified Jira custom field (e.g., 'squad', 'team', 'component')
 
 **Examples:**
 ```bash
@@ -274,6 +275,9 @@ my-day report --debug --show-quality --verbose
 my-day report --export
 my-day report --export --export-folder ~/obsidian-vault/daily-reports
 my-day report --export --export-tags work,standup,devops
+my-day report --field squad
+my-day report --field team --detailed
+my-day report --field customfield_12944
 ```
 
 #### 5. `my-day config`
@@ -397,6 +401,20 @@ jira:
     - key: "INTEROP"
       name: "Interop Team"
     # Add more projects...
+  # Custom Fields Configuration (Optional)
+  custom_fields:
+    squad:
+      field_id: "customfield_12944"
+      display_name: "Squad"
+      field_type: "select"
+    team:
+      field_id: "customfield_12945"
+      display_name: "Team"
+      field_type: "select"
+    component:
+      field_id: "customfield_12946"
+      display_name: "Component"
+      field_type: "multi-select"
 
 llm:
   enabled: true
@@ -442,6 +460,238 @@ All settings support environment variables with `MY_DAY_` prefix:
 ```bash
 export MY_DAY_JIRA_BASE_URL="https://company.atlassian.net"
 export MY_DAY_LLM_MODE="disabled"
+```
+
+## 🏷️ Custom Field Grouping
+
+`my-day` supports grouping your daily standup reports by any Jira custom field. This is perfect for organizing reports by Squad, Team, Component, Epic, or any other custom field in your Jira instance.
+
+### Quick Start
+
+Use the `--field` flag to group your report by any field:
+
+```bash
+# Group by Squad
+my-day report --field squad
+
+# Group by Team
+my-day report --field team
+
+# Group by any custom field ID
+my-day report --field customfield_12944
+```
+
+### Supported Field Types
+
+The field grouping feature supports:
+
+- **Standard Jira Fields**: `project`, `priority`, `status`, `issuetype`, `assignee`, `reporter`
+- **Custom Fields**: Any custom field in your Jira instance (by field ID or configured name)
+- **Common Fields**: Pre-configured mappings for `squad`, `team`, `component`, `epic`, `sprint`
+
+### Configuration Setup
+
+For the best experience, configure your custom fields in your config file:
+
+```yaml
+jira:
+  base_url: "https://your-company.atlassian.net"
+  email: "your-email@example.com"
+  projects:
+    - key: "DEVOPS"
+      name: "DevOps Team"
+    - key: "INTEROP" 
+      name: "Interop Team"
+  
+  # Custom Fields Configuration
+  custom_fields:
+    squad:
+      field_id: "customfield_12944"
+      display_name: "DevOps Infrastructure Squad"
+      field_type: "select"
+    team:
+      field_id: "customfield_12945"  
+      display_name: "Team Assignment"
+      field_type: "select"
+    component:
+      field_id: "customfield_12946"
+      display_name: "System Component"
+      field_type: "multi-select"
+    epic:
+      field_id: "customfield_10014"
+      display_name: "Epic Link"
+      field_type: "epic"
+    sprint:
+      field_id: "customfield_10007"
+      display_name: "Sprint"
+      field_type: "sprint"
+```
+
+### Finding Custom Field IDs
+
+To find the field ID for any custom field in your Jira instance:
+
+#### Method 1: Via Jira UI (Recommended)
+1. Go to any Jira issue that has the custom field
+2. Click "..." → "Configure" 
+3. Click on the custom field
+4. The field ID will be shown in the URL: `customfield_XXXXX`
+
+#### Method 2: Via Browser Developer Tools
+1. Open any Jira issue with the custom field
+2. Right-click on the custom field → "Inspect Element"
+3. Look for `data-field-id` or similar attributes
+4. The field ID will be in format `customfield_XXXXX`
+
+#### Method 3: Via Jira Admin (For Admins)
+1. Go to Jira Administration → Issues → Custom Fields
+2. Find your custom field in the list
+3. The field ID is shown in the "ID" column
+
+### Usage Examples
+
+#### Basic Field Grouping
+```bash
+# Group by squad (uses configured field mapping)
+my-day report --field squad
+
+# Group by team with detailed info
+my-day report --field team --detailed
+
+# Group by priority (standard field)
+my-day report --field priority
+```
+
+#### Direct Field ID Usage
+```bash
+# Use field ID directly if not configured
+my-day report --field customfield_12944
+
+# Group by Epic Link
+my-day report --field customfield_10014
+
+# Group by Sprint
+my-day report --field customfield_10007
+```
+
+#### Combined with Other Features
+```bash
+# Grouped report with AI analysis
+my-day report --field squad --debug --show-quality
+
+# Export grouped report to Obsidian
+my-day report --field team --export --export-tags squad,team-report
+
+# Generate markdown grouped report
+my-day report --field component --report-format markdown --output team-report.md
+```
+
+### Report Output Example
+
+When using `my-day report --field squad`, your output will look like:
+
+```
+🚀 Daily Standup Report - July 19, 2025
+==================================================
+📝 Issues grouped by Squad
+
+🤖 AI SUMMARY OF TODAY'S WORK
+Completed infrastructure deployments across DevOps and Platform squads. Database migrations tested successfully and security configurations updated.
+
+📊 SUMMARY
+• Total issues: 8
+• Groups by squad: 3
+• Total comments added: 12
+• Worklog entries: 5
+
+🏷️  DEVOPS INFRASTRUCTURE SQUAD (5 issues)
+------------------------------
+🔄 Currently Working On:
+  🔄 DEVOPS-123 [DEVOPS] AWS Lambda deployment automation
+    💬 Today's work: Configured Terraform modules and tested in staging environment
+
+✅ Recently Completed:
+  ✅ DEVOPS-122 [DEVOPS] VPC security group updates
+    💬 Today's work: Applied security policies and verified connectivity
+
+🏷️  PLATFORM SQUAD (2 issues)  
+------------------------------
+🔄 Currently Working On:
+  🔄 PLAT-456 [PLATFORM] Kubernetes ingress configuration
+
+🏷️  UNASSIGNED (1 issues)
+------------------------------
+📋 To Do:
+  📋 MISC-789 [SUPPORT] Documentation updates
+```
+
+### Best Practices
+
+#### 1. Consistent Field Values
+Ensure your custom field values are consistent across issues:
+- Use standardized squad/team names
+- Avoid typos and variations
+- Consider using Jira's select lists for consistency
+
+#### 2. Configuration Management
+- Configure commonly used fields in your config file
+- Use descriptive display names for better readability
+- Document field IDs for your team
+
+#### 3. Reporting Workflows
+```bash
+# Daily squad standup
+my-day report --field squad --detailed
+
+# Weekly team review  
+my-day report --field team --date $(date -d "last monday" +%Y-%m-%d)
+
+# Component-specific analysis
+my-day report --field component --debug --show-quality
+```
+
+#### 4. Team Integration
+```bash
+# Generate squad-specific reports for different teams
+my-day report --field squad --projects DEVOPS,PLATFORM --export
+my-day report --field team --projects INTEROP,FOUNDATION --export
+```
+
+### Troubleshooting
+
+#### Issue: Field grouping shows all tickets as "Unassigned"
+**Solution**: Verify the field ID is correct and the field exists on your issues:
+```bash
+# Check your Jira configuration
+my-day config show
+
+# Test with a known standard field first
+my-day report --field project
+```
+
+#### Issue: Custom field not found
+**Solution**: Double-check the field ID format:
+- Field IDs must start with `customfield_`
+- Example: `customfield_12944` (not `12944`)
+- Use browser dev tools to verify the exact field ID
+
+#### Issue: Empty field values
+**Solution**: Ensure issues have values for the custom field:
+- Check that the field is populated on your issues
+- Consider using a different field that has consistent values
+- Issues without field values will appear under "Unassigned"
+
+### Environment Variables
+
+You can also configure custom field mappings via environment variables:
+
+```bash
+# Configure a squad field mapping
+export MY_DAY_JIRA_CUSTOM_FIELDS_SQUAD_FIELD_ID="customfield_12944"
+export MY_DAY_JIRA_CUSTOM_FIELDS_SQUAD_DISPLAY_NAME="Squad"
+
+# Use in report
+my-day report --field squad
 ```
 
 ## 📚 Usage Examples & Workflows
