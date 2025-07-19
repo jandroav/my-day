@@ -144,29 +144,29 @@ my-day [global-flags] <command> [command-flags] [arguments]
 ### Global Flags
 Available on all commands:
 
-| Flag | Description | Default |
-|------|-------------|---------|
-| `--config` | Config file path | `$HOME/.my-day/config.yaml` |
-| `-v, --verbose` | Enable verbose output | `false` |
-| `-q, --quiet` | Enable quiet output | `false` |
-| `--jira-url` | Jira base URL | - |
-| `--jira-email` | Jira email for API token | - |
-| `--jira-token` | Jira API token | - |
-| `--projects` | Jira project keys (comma-separated) | - |
-| `--llm-mode` | LLM mode (embedded\|ollama\|disabled) | `ollama` |
-| `--llm-model` | LLM model name | `qwen2.5:3b` |
-| `--llm-enabled` | Enable LLM features | `true` |
-| `--llm-debug` | Enable LLM debug mode | `false` |
-| `--llm-style` | LLM summary style (technical\|business\|brief) | `technical` |
-| `--llm-max-length` | Maximum LLM summary length (0 for no limit) | `0` |
-| `--llm-technical-details` | Include technical details in summaries | `true` |
-| `--llm-fallback` | LLM fallback strategy (graceful\|strict) | `graceful` |
-| `--ollama-url` | Ollama base URL | `http://localhost:11434` |
-| `--ollama-model` | Ollama model name | `qwen2.5:3b` |
-| `--report-format` | Report format (console\|markdown) | `console` |
-| `--include-yesterday` | Include yesterday's work | `true` |
-| `--include-today` | Include today's work | `true` |
-| `--include-in-progress` | Include in-progress tickets | `true` |
+| Flag | Description | Default | Config |
+|------|-------------|---------|--------|
+| `--config` | Config file path | `$HOME/.my-day/config.yaml` | *file location* |
+| `-v, --verbose` | Enable verbose output (config: `verbose`) | `false` | `verbose` |
+| `-q, --quiet` | Enable quiet output (config: `quiet`) | `false` | `quiet` |
+| `--jira-url` | Jira base URL (config: `jira.base_url`) | - | `jira.base_url` |
+| `--jira-email` | Jira email for API token (config: `jira.email`) | - | `jira.email` |
+| `--jira-token` | Jira API token (config: `jira.token`) | - | `jira.token` |
+| `--projects` | Jira project keys, comma-separated (config: `jira.projects`) | - | `jira.projects` |
+| `--llm-mode` | LLM mode: embedded\|ollama\|disabled (config: `llm.mode`) | `ollama` | `llm.mode` |
+| `--llm-model` | LLM model name (config: `llm.model`) | `qwen2.5:3b` | `llm.model` |
+| `--llm-enabled` | Enable LLM features (config: `llm.enabled`) | `true` | `llm.enabled` |
+| `--llm-debug` | Enable LLM debug mode (config: `llm.debug`) | `false` | `llm.debug` |
+| `--llm-style` | LLM summary style: technical\|business\|brief (config: `llm.summary_style`) | `technical` | `llm.summary_style` |
+| `--llm-max-length` | Maximum LLM summary length, 0 for no limit (config: `llm.max_summary_length`) | `0` | `llm.max_summary_length` |
+| `--llm-technical-details` | Include technical details in summaries (config: `llm.include_technical_details`) | `true` | `llm.include_technical_details` |
+| `--llm-fallback` | LLM fallback strategy: graceful\|strict (config: `llm.fallback_strategy`) | `graceful` | `llm.fallback_strategy` |
+| `--ollama-url` | Ollama base URL (config: `llm.ollama.base_url`) | `http://localhost:11434` | `llm.ollama.base_url` |
+| `--ollama-model` | Ollama model name (config: `llm.ollama.model`) | `qwen2.5:3b` | `llm.ollama.model` |
+| `--report-format` | Report format: console\|markdown (config: `report.format`) | `console` | `report.format` |
+| `--include-yesterday` | Include yesterday's work (config: `report.include_yesterday`) | `true` | `report.include_yesterday` |
+| `--include-today` | Include today's work (config: `report.include_today`) | `true` | `report.include_today` |
+| `--include-in-progress` | Include in-progress tickets (config: `report.include_in_progress`) | `true` | `report.include_in_progress` |
 
 ### Commands
 
@@ -203,8 +203,8 @@ my-day auth [flags]
 ```
 
 **Flags:**
-- `--email` - Email address for API token authentication (can be set in config)
-- `--token` - API token for authentication (can be set in config)
+- `--email` - Email address for API token authentication (config: `jira.email`)
+- `--token` - API token for authentication (config: `jira.token`)
 - `--clear` - Clear existing authentication
 - `--test` - Test existing authentication
 
@@ -239,6 +239,7 @@ my-day sync [flags]
 - `--force` - Force sync even if recently synced
 - `--worklog` - Include worklog entries (default: true)
 - `--since` - Sync tickets updated since duration ago (default: 168h)
+- `--comments-since` - Look for your comments since this duration ago (default: 24h)
 
 **Examples:**
 ```bash
@@ -246,6 +247,7 @@ my-day sync
 my-day sync --max-results 200
 my-day sync --force
 my-day sync --since 48h
+my-day sync --comments-since 12h
 my-day sync --worklog=false
 ```
 
@@ -260,15 +262,15 @@ my-day report [flags]
 **Flags:**
 - `--date` - Generate report for specific date (YYYY-MM-DD)
 - `--output` - Output file path (default: stdout)
-- `--no-llm` - Disable LLM summarization
+- `--no-llm` - Disable LLM summarization for this report
 - `--detailed` - Include detailed ticket information
-- `--debug` - Enable debug output for LLM processing
+- `--debug` - Enable debug output for LLM processing (config: `llm.debug`)
 - `--show-quality` - Show summary quality indicators
-- `--verbose` - Show verbose LLM processing information
-- `--export` - Export report to Obsidian-compatible markdown file
-- `--export-folder` - Folder path for exported reports (overrides config)
-- `--export-tags` - Additional tags for exported report (overrides config)
-- `--field` - Group report by specified Jira custom field (e.g., 'squad', 'team', 'component')
+- `--verbose` - Show verbose LLM processing information (config: `verbose`)
+- `--export` - Export report to markdown file (config: `report.export.enabled`)
+- `--export-folder` - Folder path for exported reports (config: `report.export.folder_path`)
+- `--export-tags` - Additional tags for exported report (config: `report.export.tags`)
+- `--field` - Group report by specified Jira custom field (config: `jira.custom_fields`)
 
 **Examples:**
 ```bash
@@ -386,7 +388,28 @@ Stop Docker LLM container
 my-day llm stop
 ```
 
-#### 7. `my-day version`
+#### 7. `my-day completion`
+Generate shell autocompletion scripts
+
+**Usage:**
+```bash
+my-day completion [bash|zsh|fish|powershell]
+```
+
+**Examples:**
+```bash
+# Bash completion
+my-day completion bash > /etc/bash_completion.d/my-day
+
+# Zsh completion (add to your .zshrc)
+my-day completion zsh > ~/.my-day-completion.zsh
+source ~/.my-day-completion.zsh
+
+# Fish completion
+my-day completion fish > ~/.config/fish/completions/my-day.fish
+```
+
+#### 8. `my-day version`
 Show version information
 
 **Usage:**
@@ -442,16 +465,16 @@ Default location: `~/.my-day/config.yaml`
 
 ```yaml
 jira:
-  base_url: "https://your-instance.atlassian.net"
-  email: "your-email@example.com"      # Optional: API token email
-  token: "your-api-token"              # Optional: API token (consider using env vars for security)
-  projects:
+  base_url: "https://your-instance.atlassian.net"  # CLI: --jira-url
+  email: "your-email@example.com"                   # CLI: --jira-email
+  token: "your-api-token"                           # CLI: --jira-token
+  projects:                                         # CLI: --projects
     - key: "DEVOPS"
       name: "DevOps Team"
     - key: "INTEROP"
       name: "Interop Team"
     # Add more projects...
-  # Custom Fields Configuration (Optional)
+  # Custom Fields Configuration (used with --field flag)
   custom_fields:
     squad:
       field_id: "customfield_12944"
@@ -467,30 +490,33 @@ jira:
       field_type: "multi-select"
 
 llm:
-  enabled: true
-  mode: "ollama"  # embedded, ollama, disabled
-  model: "qwen2.5:3b"
-  # Enhanced LLM Configuration
-  debug: false                     # Enable debug logging
-  summary_style: "technical"       # technical, business, brief
-  max_summary_length: 0           # Maximum summary length (0 for no limit)
-  include_technical_details: true  # Include technical terms
-  prioritize_recent_work: true     # Focus on recent activity
-  fallback_strategy: "graceful"    # Error handling strategy
+  enabled: true                             # CLI: --llm-enabled
+  mode: "ollama"                           # CLI: --llm-mode (embedded, ollama, disabled)
+  model: "qwen2.5:3b"                      # CLI: --llm-model
+  debug: false                             # CLI: --llm-debug
+  summary_style: "technical"               # CLI: --llm-style (technical, business, brief)
+  max_summary_length: 0                    # CLI: --llm-max-length (0 for no limit)
+  include_technical_details: true          # CLI: --llm-technical-details
+  prioritize_recent_work: true             # Focus on recent activity
+  fallback_strategy: "graceful"            # CLI: --llm-fallback (graceful, strict)
   ollama:
-    base_url: "http://localhost:11434"
-    model: "qwen2.5:3b"
+    base_url: "http://localhost:11434"     # CLI: --ollama-url
+    model: "qwen2.5:3b"                    # CLI: --ollama-model
 
 report:
-  format: "console"  # console, markdown
-  include_yesterday: true
-  include_today: true
-  include_in_progress: true
+  format: "console"                        # CLI: --report-format (console, markdown)
+  include_yesterday: true                  # CLI: --include-yesterday
+  include_today: true                      # CLI: --include-today
+  include_in_progress: true                # CLI: --include-in-progress
   export:
-    enabled: false                           # Enable export to markdown
-    folder_path: "~/Documents/my-day-reports"  # Export folder path
-    filename_date: "2006-01-02"             # Date format for filenames
-    tags: ["report", "my-day"]              # Tags for Obsidian
+    enabled: false                         # CLI: --export
+    folder_path: "~/Documents/my-day-reports"  # CLI: --export-folder
+    filename_date: "2006-01-02"           # Date format for filenames
+    tags: ["report", "my-day"]             # CLI: --export-tags
+
+# Global settings
+verbose: false                             # CLI: -v, --verbose
+quiet: false                               # CLI: -q, --quiet
 ```
 
 ### CLI Flags
