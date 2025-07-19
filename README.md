@@ -9,6 +9,7 @@ A colorful Golang CLI tool that helps DevOps team members track Jira tickets acr
 - [Quick Start](#-quick-start)
 - [Complete Command Reference](#-complete-command-reference)
 - [Configuration](#configuration)
+- [Report Caching](#-report-caching)
 - [Usage Examples & Workflows](#-usage-examples--workflows)
 - [Jira API Token Setup](#jira-api-token-setup)
 - [LLM Integration](#llm-integration)
@@ -25,6 +26,7 @@ A colorful Golang CLI tool that helps DevOps team members track Jira tickets acr
 - 📝 **Obsidian Export**: Export reports to Obsidian-compatible markdown with interconnected daily notes
 - ⚙️ **Flexible Configuration**: YAML config, CLI flags, and environment variables
 - 🚀 **Fast & Offline**: Local caching for quick report generation
+- 🗄️ **Report Caching**: Intelligent caching system that avoids redundant LLM calls and enables offline export
 - 🤖 **AI Summarization**: Optional embedded LLM or Ollama integration with enhanced features
 - 🌈 **Colorful Output**: Beautiful terminal interface with status icons
 - 🔍 **Debug Mode**: Detailed processing information and quality indicators
@@ -262,11 +264,14 @@ my-day report [flags]
 **Flags:**
 - `--date` - Generate report for specific date (YYYY-MM-DD)
 - `--output` - Output file path (default: stdout)
+- `--since` - Include tickets and worklogs updated since this duration ago (default: 168h)
 - `--no-llm` - Disable LLM summarization for this report
 - `--detailed` - Include detailed ticket information
 - `--debug` - Enable debug output for LLM processing (config: `llm.debug`)
 - `--show-quality` - Show summary quality indicators
 - `--verbose` - Show verbose LLM processing information (config: `verbose`)
+- `--no-cache` - Disable report caching (always generate fresh report)
+- `--cache-only` - Only use cached reports (fail if no cache exists)
 - `--export` - Export report to markdown file (config: `report.export.enabled`)
 - `--export-folder` - Folder path for exported reports (config: `report.export.folder_path`)
 - `--export-tags` - Additional tags for exported report (config: `report.export.tags`)
@@ -276,10 +281,13 @@ my-day report [flags]
 ```bash
 my-day report
 my-day report --date 2024-07-15
+my-day report --since 48h
 my-day report --output report.md
 my-day report --no-llm
 my-day report --detailed
 my-day report --debug --show-quality --verbose
+my-day report --no-cache
+my-day report --cache-only
 my-day report --export
 my-day report --export --export-folder ~/obsidian-vault/daily-reports
 my-day report --export --export-tags work,standup,devops
@@ -288,7 +296,90 @@ my-day report --field team --detailed
 my-day report --field customfield_12944
 ```
 
-#### 5. `my-day config`
+#### 5. `my-day export`
+Export cached reports to files
+
+**Usage:**
+```bash
+my-day export [flags]
+```
+
+**Flags:**
+- `--date` - Export report for specific date (YYYY-MM-DD)
+- `--from` - Export reports from this date (YYYY-MM-DD)
+- `--to` - Export reports to this date (YYYY-MM-DD)
+- `--format` - Export formats (markdown, console) (default: ["markdown"])
+- `--output-dir` - Output directory (default: current directory)
+- `--list` - List available cached reports
+- `--force` - Overwrite existing files
+- `--filename-template` - Filename template (supports {{.Date}}, {{.Format}}, {{.ID}})
+
+**Examples:**
+```bash
+# List all cached reports
+my-day export --list
+
+# Export today's report
+my-day export --date 2025-01-15
+
+# Export reports for a date range
+my-day export --from 2025-01-10 --to 2025-01-15
+
+# Export to specific directory with custom template
+my-day export --output-dir ./reports --filename-template "standup_{{.Date}}"
+```
+
+#### 6. `my-day cache`
+Manage report cache
+
+**Subcommands:**
+
+##### `my-day cache list`
+List cached reports with details
+
+**Usage:**
+```bash
+my-day cache list
+```
+
+##### `my-day cache stats`
+Show cache statistics
+
+**Usage:**
+```bash
+my-day cache stats
+```
+
+##### `my-day cache clear`
+Clear cached reports
+
+**Usage:**
+```bash
+my-day cache clear [flags]
+```
+
+**Flags:**
+- `--all` - Clear all cached reports
+- `--before` - Clear reports older than a date (YYYY-MM-DD)
+
+##### `my-day cache delete`
+Delete specific cached reports
+
+**Usage:**
+```bash
+my-day cache delete [report-id]
+```
+
+**Examples:**
+```bash
+my-day cache list
+my-day cache stats
+my-day cache clear --all
+my-day cache clear --before 2025-01-01
+my-day cache delete 2025-01-15_abcd1234
+```
+
+#### 7. `my-day config`
 Manage configuration settings
 
 **Subcommands:**
@@ -328,7 +419,7 @@ Show configuration file path
 my-day config path
 ```
 
-#### 6. `my-day llm`
+#### 8. `my-day llm`
 Manage LLM integration
 
 **Subcommands:**
@@ -388,7 +479,7 @@ Stop Docker LLM container
 my-day llm stop
 ```
 
-#### 7. `my-day completion`
+#### 9. `my-day completion`
 Generate shell autocompletion scripts
 
 **Usage:**
@@ -409,7 +500,7 @@ source ~/.my-day-completion.zsh
 my-day completion fish > ~/.config/fish/completions/my-day.fish
 ```
 
-#### 8. `my-day version`
+#### 10. `my-day version`
 Show version information
 
 **Usage:**
@@ -534,6 +625,150 @@ All settings support environment variables with `MY_DAY_` prefix:
 ```bash
 export MY_DAY_JIRA_BASE_URL="https://company.atlassian.net"
 export MY_DAY_LLM_MODE="disabled"
+```
+
+## 🗄️ Report Caching
+
+The my-day CLI includes intelligent report caching to improve performance and reduce LLM API calls.
+
+### Overview
+
+Reports are automatically cached based on a unique fingerprint that includes:
+- Report date
+- Configuration parameters (LLM settings, debug flags, etc.)
+- Issue data (keys and update times)
+- Comment data (IDs and timestamps)
+- Worklog data
+
+This ensures that cached reports are only reused when the underlying data hasn't changed.
+
+### Cache Commands
+
+#### Generate Reports with Caching
+
+By default, caching is enabled for all report generation:
+
+```bash
+# Normal report generation (with caching)
+my-day report
+
+# Filter to show only tickets updated in the last 48 hours
+my-day report --since 48h
+
+# Filter to show only tickets updated in the last 3 days
+my-day report --since 72h
+
+# Disable caching for this report
+my-day report --no-cache
+
+# Use only cached reports (fail if no cache exists)
+my-day report --cache-only
+```
+
+#### Export Cached Reports
+
+Export previously generated reports without calling the LLM:
+
+```bash
+# List all cached reports
+my-day export --list
+
+# Export today's report
+my-day export --date 2025-01-15
+
+# Export reports for a date range
+my-day export --from 2025-01-10 --to 2025-01-15
+
+# Export to specific directory with custom template
+my-day export --output-dir ./reports --filename-template "standup_{{.Date}}"
+```
+
+#### Cache Management
+
+```bash
+# List cached reports with details
+my-day cache list
+
+# Show cache statistics
+my-day cache stats
+
+# Clear all cached reports
+my-day cache clear --all
+
+# Clear reports older than a date
+my-day cache clear --before 2025-01-01
+
+# Delete specific cached reports
+my-day cache delete 2025-01-15_abcd1234
+```
+
+### Cache Storage
+
+Reports are cached in `~/.my-day/reports/` with the following structure:
+
+- `index.json` - Cache index with metadata
+- `<report-id>.json` - Individual cached reports
+
+Each cached report includes:
+- Generated report content
+- Configuration used
+- Generation metadata (time, LLM usage, etc.)
+- Input data fingerprint
+
+### Cache Benefits
+
+1. **Performance**: Instant report generation for unchanged data
+2. **Cost Savings**: Reduces LLM API calls
+3. **Offline Access**: View reports without network connectivity
+4. **Export Flexibility**: Export reports in different formats without regeneration
+
+### Data Filtering with --since
+
+The `--since` flag filters cached data to include only tickets updated within the specified time period:
+
+- `--since 24h` - Last 24 hours
+- `--since 48h` - Last 48 hours  
+- `--since 72h` - Last 3 days
+- `--since 168h` - Last 7 days (default)
+
+This filtering happens on the locally cached data, so it's very fast and doesn't require new API calls.
+
+### Cache Invalidation
+
+Cache is automatically invalidated when:
+- Issue data changes (updates, new comments)
+- Configuration changes (LLM settings, format, etc.)
+- Report parameters change (debug flags, grouping, `--since` value, etc.)
+
+### Debug Information
+
+Use debug flags to see cache activity:
+
+```bash
+# Show cache hits/misses
+my-day report --debug
+
+# Show detailed cache information
+my-day report --verbose
+```
+
+### Examples
+
+```bash
+# Generate report for last 48 hours (caches for future use)
+my-day report --since 48h --format markdown
+
+# Export the same report without regeneration
+my-day export --date today --format markdown
+
+# Generate report for specific date with custom time range
+my-day report --date 2025-01-15 --since 72h
+
+# List all cached reports
+my-day cache list
+
+# Export last week's reports
+my-day export --from 2025-01-08 --to 2025-01-14 --output-dir ./weekly-reports
 ```
 
 ## 🏷️ Custom Field Grouping
@@ -797,26 +1032,32 @@ Output:
 
 #### Morning Standup Preparation
 ```bash
-# Get today's work with enhanced analysis
+# Get today's work with enhanced analysis (cached for performance)
 my-day report --debug --show-quality
 
-# Generate markdown report for sharing
+# Generate markdown report for sharing (uses cache if available)
 my-day report --report-format markdown --output standup-$(date +%Y-%m-%d).md
 
 # Export to Obsidian for daily notes
 my-day report --export --export-folder ~/obsidian-vault/daily-reports
 
-# Quick sync before standup
-my-day sync --since 24h && my-day report --detailed
+# Quick sync before standup with data filtering
+my-day sync --since 24h && my-day report --since 48h --detailed
+
+# Use only cached reports for instant standup (if cache exists)
+my-day report --cache-only --since 24h
 ```
 
 #### Weekly Review
 ```bash
-# Generate reports for the past week
+# Generate reports for the past week (uses cache when available)
 for day in {1..7}; do
   date=$(date -d "-$day days" +%Y-%m-%d)
   my-day report --date $date --output weekly-review-$date.md
 done
+
+# Export cached reports for past week (no LLM regeneration)
+my-day export --from $(date -d "-7 days" +%Y-%m-%d) --to $(date +%Y-%m-%d) --output-dir ./weekly-reports
 
 # Export past week to Obsidian (creates interconnected daily notes)
 for day in {1..7}; do
@@ -888,13 +1129,30 @@ my-day sync --force --verbose
 # Sync latest data
 my-day sync --since 24h
 
-# Generate enhanced report
+# Generate enhanced report (cached for performance)
 my-day report --debug --show-quality --output "standup-$(date +%Y-%m-%d).md"
+
+# Export to team folder without regenerating
+my-day export --date $(date +%Y-%m-%d) --output-dir ./team-reports --force
 
 # Send to team channel (example with Slack)
 # curl -X POST -H 'Content-type: application/json' \
 #   --data '{"text":"Daily standup report ready"}' \
 #   YOUR_SLACK_WEBHOOK_URL
+```
+
+#### Weekly Report Export Script
+```bash
+#!/bin/bash
+# weekly-export.sh
+
+# Export all cached reports from the past week
+my-day export --from $(date -d "-7 days" +%Y-%m-%d) \
+              --to $(date +%Y-%m-%d) \
+              --output-dir ./weekly-reports \
+              --filename-template "{{.Date}}_weekly_standup"
+
+echo "Weekly reports exported to ./weekly-reports/"
 ```
 
 #### CI/CD Integration
@@ -1561,7 +1819,11 @@ cp ~/.my-day/config.yaml ~/.my-day/config.yaml.backup
 - Use `--since 24h` for daily reports instead of syncing all history
 - Limit `--max-results` for faster syncing
 - Use `--no-llm` for quick reports when LLM analysis isn't needed
-- Cache is stored in `~/.my-day/cache.json` - delete if you have issues
+- **Use `--cache-only` for instant reports** when you don't need fresh data
+- **Use `my-day export` to share reports** without regenerating them
+- **Clear old cached reports** with `my-day cache clear --before YYYY-MM-DD`
+- Jira data cache is stored in `~/.my-day/cache.json` - delete if you have issues
+- Report cache is stored in `~/.my-day/reports/` - use `my-day cache stats` to check size
 
 ### Security Notes
 
