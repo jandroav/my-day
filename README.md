@@ -22,11 +22,13 @@ A colorful Golang CLI tool that helps DevOps team members track Jira tickets acr
 
 - 🎯 **Multi-team Support**: Track tickets across DevOps, Interop, Foundation, Enterprise, and LBIO teams
 - 🔐 **Simple Authentication**: Secure API token authentication with Jira Cloud (recommended by Atlassian)
+- 🐙 **GitHub Integration**: Unified view of Jira tickets and GitHub activity (PRs, commits, workflows)
 - 📊 **Daily Reports**: Generate colorful console or markdown reports for standups
 - 📝 **Obsidian Export**: Export reports to Obsidian-compatible markdown with interconnected daily notes
 - ⚙️ **Flexible Configuration**: YAML config, CLI flags, and environment variables
 - 🚀 **Fast & Offline**: Local caching for quick report generation
 - 🗄️ **Report Caching**: Intelligent caching system that avoids redundant LLM calls and enables offline export
+- 🔗 **Smart Linking**: Automatic correlation between Jira tickets and GitHub PRs/commits
 - 🤖 **AI Summarization**: Optional embedded LLM or Ollama integration with enhanced features
 - 🌈 **Colorful Output**: Beautiful terminal interface with status icons
 - 🔍 **Debug Mode**: Detailed processing information and quality indicators
@@ -94,10 +96,15 @@ go install github.com/jandroav/my-day@latest
    my-day auth --email your-email@example.com --token your-api-token
    ```
 
-5. **Start Using**:
+5. **Connect to GitHub** (Optional but recommended):
    ```bash
-   my-day sync     # Get your tickets
-   my-day report   # Generate report
+   my-day github connect --token your-github-token
+   ```
+
+6. **Start Using**:
+   ```bash
+   my-day sync     # Get your tickets and GitHub activity
+   my-day report   # Generate unified report
    ```
 
 ### Guided Setup (For First-Time Users)
@@ -296,7 +303,64 @@ my-day report --field team --detailed
 my-day report --field customfield_12944
 ```
 
-#### 5. `my-day export`
+#### 5. `my-day github`
+Manage GitHub integration
+
+**Usage:**
+```bash
+my-day github [command]
+```
+
+**Subcommands:**
+
+##### `my-day github connect`
+Connect to GitHub using a personal access token
+
+**Usage:**
+```bash
+my-day github connect [flags]
+```
+
+**Flags:**
+- `--token` - GitHub personal access token
+- `--test` - Test connection after connecting (default: true)
+
+**Examples:**
+```bash
+my-day github connect --token ghp_xxxxxxxxxxxxxxxxxxxx
+```
+
+##### `my-day github status`
+Show GitHub connection status and user information
+
+**Usage:**
+```bash
+my-day github status
+```
+
+##### `my-day github test`
+Test GitHub API connection and show repository access
+
+**Usage:**
+```bash
+my-day github test
+```
+
+##### `my-day github disconnect`
+Remove GitHub authentication and disconnect
+
+**Usage:**
+```bash
+my-day github disconnect
+```
+
+**GitHub Personal Access Token Setup:**
+1. Go to GitHub Settings → Developer settings → Personal access tokens → Tokens (classic)
+2. Click "Generate new token (classic)"
+3. Select scopes: `repo`, `user`, `workflow`
+4. Copy the generated token and use with `my-day github connect`
+
+#### 7. `my-day export`
 Export cached reports to files
 
 **Usage:**
@@ -329,7 +393,7 @@ my-day export --from 2025-01-10 --to 2025-01-15
 my-day export --output-dir ./reports --filename-template "standup_{{.Date}}"
 ```
 
-#### 6. `my-day cache`
+#### 8. `my-day cache`
 Manage report cache
 
 **Subcommands:**
@@ -379,7 +443,7 @@ my-day cache clear --before 2025-01-01
 my-day cache delete 2025-01-15_abcd1234
 ```
 
-#### 7. `my-day config`
+#### 9. `my-day config`
 Manage configuration settings
 
 **Subcommands:**
@@ -419,7 +483,7 @@ Show configuration file path
 my-day config path
 ```
 
-#### 8. `my-day llm`
+#### 10. `my-day llm`
 Manage LLM integration
 
 **Subcommands:**
@@ -479,7 +543,7 @@ Stop Docker LLM container
 my-day llm stop
 ```
 
-#### 9. `my-day completion`
+#### 10. `my-day completion`
 Generate shell autocompletion scripts
 
 **Usage:**

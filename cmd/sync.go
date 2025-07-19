@@ -11,17 +11,23 @@ import (
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 	"my-day/internal/config"
+	"my-day/internal/github"
 	"my-day/internal/jira"
 )
 
 // syncCmd represents the sync command
 var syncCmd = &cobra.Command{
 	Use:   "sync",
-	Short: "Sync tickets from Jira",
-	Long: `Sync pulls your latest tickets from Jira and stores them locally.
+	Short: "Sync tickets from Jira and GitHub",
+	Long: `Sync pulls your latest tickets from Jira and GitHub activity and stores them locally.
 
 This command fetches tickets assigned to you or created by you from
-the configured project keys and caches them for report generation.`,
+the configured project keys and GitHub repositories, then caches them for report generation.
+
+GitHub integration includes:
+- Pull requests (authored, assigned, or reviewed)
+- Commits (authored by you)
+- Workflow runs and CI/CD status`,
 	Run: func(cmd *cobra.Command, args []string) {
 		if err := syncTickets(cmd); err != nil {
 			color.Red("Sync failed: %v", err)
@@ -38,10 +44,12 @@ type IssueWithComments struct {
 
 // TicketCache represents the cached ticket data
 type TicketCache struct {
-	LastSync         time.Time            `json:"last_sync"`
-	Issues           []jira.Issue         `json:"issues"`
-	IssuesWithComments []IssueWithComments `json:"issues_with_comments"`
-	Worklogs         []jira.WorklogEntry  `json:"worklogs"`
+	LastSync           time.Time              `json:"last_sync"`
+	Issues             []jira.Issue           `json:"issues"`
+	IssuesWithComments []IssueWithComments    `json:"issues_with_comments"`
+	Worklogs           []jira.WorklogEntry    `json:"worklogs"`
+	GitHubActivity     []github.Activity      `json:"github_activity"`
+	LastGitHubSync     time.Time              `json:"last_github_sync"`
 }
 
 func init() {
@@ -53,6 +61,8 @@ func init() {
 	syncCmd.Flags().Bool("worklog", true, "Include worklog entries")
 	syncCmd.Flags().Duration("since", 7*24*time.Hour, "Fetch tickets and worklogs updated since this duration ago")
 	syncCmd.Flags().Duration("comments-since", 24*time.Hour, "Look for your comments within this duration (defaults to --since value if not specified)")
+	syncCmd.Flags().StringSlice("platforms", []string{"jira", "github"}, "Platforms to sync (jira, github)")
+	syncCmd.Flags().Bool("github", true, "Include GitHub activity (if connected and enabled)")
 }
 
 func syncTickets(cmd *cobra.Command) error {
@@ -214,12 +224,49 @@ func syncTickets(cmd *cobra.Command) error {
 		filteredIssues = append(filteredIssues, iwc.Issue)
 	}
 
+	// Fetch GitHub activity if enabled
+	var githubActivity []github.Activity
+	githubSyncTime := time.Now()
+	includeGitHub, _ := cmd.Flags().GetBool("github")
+	platforms, _ := cmd.Flags().GetStringSlice("platforms")
+	
+	if includeGitHub && containsString(platforms, "github") && cfg.GitHub.Enabled {
+		color.Cyan("🐙 Syncing GitHub activity...")
+		
+		githubAuthManager := github.NewAuthManager("")
+		if githubAuthManager.IsAuthenticated() {
+			authInfo, err := githubAuthManager.LoadToken()
+			if err == nil {
+				githubClient := github.NewClient(authInfo.Token)
+				
+				// Fetch GitHub activity since the specified time
+				githubSinceTime := time.Now().Add(-since)
+				activity, err := githubClient.GetUserActivity(ctx, githubSinceTime, cfg.GitHub.Repositories)
+				if err != nil {
+					color.Yellow("Warning: Failed to fetch GitHub activity: %v", err)
+					githubActivity = []github.Activity{} // Continue without GitHub
+				} else {
+					githubActivity = activity
+					color.Green("✓ Fetched %d GitHub activities", len(githubActivity))
+				}
+			} else {
+				color.Yellow("Warning: GitHub authentication failed: %v", err)
+			}
+		} else {
+			color.Yellow("⚠️  GitHub not authenticated. Run 'my-day github connect' to include GitHub activity")
+		}
+	} else {
+		color.White("GitHub sync disabled or not configured")
+	}
+
 	// Create cache
 	cache := TicketCache{
 		LastSync:           time.Now(),
 		Issues:             filteredIssues,
 		IssuesWithComments: issuesWithComments,
 		Worklogs:           worklogs,
+		GitHubActivity:     githubActivity,
+		LastGitHubSync:     githubSyncTime,
 	}
 
 	// Save to cache file
@@ -230,6 +277,7 @@ func syncTickets(cmd *cobra.Command) error {
 	color.Green("✓ Sync completed successfully")
 	color.White("Issues: %d", len(cache.Issues))
 	color.White("Worklog entries: %d", len(cache.Worklogs))
+	color.White("GitHub activities: %d", len(cache.GitHubActivity))
 	color.White("Cache saved to: %s", cacheFile)
 
 	// Show summary of recent activity
@@ -276,32 +324,72 @@ func saveCache(filePath string, cache *TicketCache) error {
 }
 
 func showSyncSummary(cache *TicketCache) {
-	if len(cache.Issues) == 0 {
+	if len(cache.Issues) == 0 && len(cache.GitHubActivity) == 0 {
 		return
 	}
 
 	fmt.Println()
 	color.Cyan("📊 Recent Activity Summary")
 
-	// Group issues by status
-	statusCounts := make(map[string]int)
-	for _, issue := range cache.Issues {
-		statusCounts[issue.Fields.Status.Name]++
+	// Show Jira activity if available
+	if len(cache.Issues) > 0 {
+		// Group issues by status
+		statusCounts := make(map[string]int)
+		for _, issue := range cache.Issues {
+			statusCounts[issue.Fields.Status.Name]++
+		}
+
+		color.White("Issues by Status:")
+		for status, count := range statusCounts {
+			color.White("  %s: %d", status, count)
+		}
+
+		// Show recent updates
+		color.White("\nRecently Updated Issues:")
+		for _, issue := range cache.Issues {
+			timeSince := time.Since(issue.Fields.Updated.Time)
+			color.White("  %s - %s (%v ago)", 
+				issue.Key, 
+				truncateString(issue.Fields.Summary, 50),
+				timeSince.Round(time.Hour))
+		}
 	}
 
-	color.White("Issues by Status:")
-	for status, count := range statusCounts {
-		color.White("  %s: %d", status, count)
-	}
-
-	// Show recent updates
-	color.White("\nRecently Updated Issues:")
-	for _, issue := range cache.Issues {
-		timeSince := time.Since(issue.Fields.Updated.Time)
-		color.White("  %s - %s (%v ago)", 
-			issue.Key, 
-			truncateString(issue.Fields.Summary, 50),
-			timeSince.Round(time.Hour))
+	// Show GitHub activity if available
+	if len(cache.GitHubActivity) > 0 {
+		color.White("\n🐙 GitHub Activity:")
+		
+		// Group by activity type
+		typeCounts := make(map[string]int)
+		for _, activity := range cache.GitHubActivity {
+			typeCounts[activity.Type]++
+		}
+		
+		for actType, count := range typeCounts {
+			color.White("  %s: %d", actType, count)
+		}
+		
+		// Show recent activities (limit to 5)
+		color.White("\nRecent GitHub Activities:")
+		displayCount := len(cache.GitHubActivity)
+		if displayCount > 5 {
+			displayCount = 5
+		}
+		
+		for i := 0; i < displayCount; i++ {
+			activity := cache.GitHubActivity[i]
+			timeSince := time.Since(activity.UpdatedAt)
+			icon := getActivityIcon(activity.Type)
+			color.White("  %s %s - %s (%v ago)", 
+				icon,
+				activity.Repository,
+				truncateString(activity.Title, 40),
+				timeSince.Round(time.Hour))
+		}
+		
+		if len(cache.GitHubActivity) > 5 {
+			color.White("  ... and %d more activities", len(cache.GitHubActivity)-5)
+		}
 	}
 }
 
@@ -310,4 +398,32 @@ func truncateString(s string, maxLen int) string {
 		return s
 	}
 	return s[:maxLen-3] + "..."
+}
+
+// containsString checks if a slice contains a string
+func containsString(slice []string, item string) bool {
+	for _, s := range slice {
+		if s == item {
+			return true
+		}
+	}
+	return false
+}
+
+// getActivityIcon returns an icon for the activity type
+func getActivityIcon(activityType string) string {
+	switch activityType {
+	case "pull_request":
+		return "🔀"
+	case "commit":
+		return "💾"
+	case "workflow_run":
+		return "⚙️"
+	case "issue":
+		return "📋"
+	case "release":
+		return "🚀"
+	default:
+		return "📝"
+	}
 }

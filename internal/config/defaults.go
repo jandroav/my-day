@@ -14,6 +14,14 @@ func SetDefaults() {
 		"IO",
 	})
 
+	// GitHub defaults
+	viper.SetDefault("github.enabled", false)
+	viper.SetDefault("github.token", "")
+	viper.SetDefault("github.repositories", []string{}) // Empty means all accessible repos
+	viper.SetDefault("github.include_prs", true)
+	viper.SetDefault("github.include_commits", true)
+	viper.SetDefault("github.include_workflows", true)
+
 	// LLM defaults (Docker-based by default for better summarization)
 	viper.SetDefault("llm.enabled", true)
 	viper.SetDefault("llm.mode", "ollama")

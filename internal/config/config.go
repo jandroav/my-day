@@ -7,6 +7,7 @@ import (
 // Config represents the application configuration
 type Config struct {
 	Jira   JiraConfig   `mapstructure:"jira" yaml:"jira"`
+	GitHub GitHubConfig `mapstructure:"github" yaml:"github"`
 	LLM    LLMConfig    `mapstructure:"llm" yaml:"llm"`
 	Report ReportConfig `mapstructure:"report" yaml:"report"`
 }
@@ -25,6 +26,16 @@ type CustomField struct {
 	FieldID     string `mapstructure:"field_id" yaml:"field_id"`
 	DisplayName string `mapstructure:"display_name" yaml:"display_name"`
 	FieldType   string `mapstructure:"field_type" yaml:"field_type"`
+}
+
+// GitHubConfig represents GitHub configuration
+type GitHubConfig struct {
+	Enabled      bool     `mapstructure:"enabled" yaml:"enabled"`
+	Token        string   `mapstructure:"token" yaml:"token"`
+	Repositories []string `mapstructure:"repositories" yaml:"repositories"`
+	IncludePRs   bool     `mapstructure:"include_prs" yaml:"include_prs"`
+	IncludeCommits bool   `mapstructure:"include_commits" yaml:"include_commits"`
+	IncludeWorkflows bool `mapstructure:"include_workflows" yaml:"include_workflows"`
 }
 
 // LLMConfig represents LLM configuration
