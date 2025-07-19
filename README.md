@@ -72,73 +72,67 @@ go install github.com/jandroav/my-day@latest
 
 ## 🚀 Quick Start
 
-### 1. Initialize Configuration
+### Standard Setup (Recommended)
 
-```bash
-my-day init
-```
+1. **Initialize Configuration**
+   ```bash
+   my-day init
+   ```
 
-This creates `~/.my-day/config.yaml` with default settings.
+2. **Edit Jira URL** in `~/.my-day/config.yaml`:
+   ```yaml
+   jira:
+     base_url: "https://your-company.atlassian.net"
+   ```
 
-### 2. Configure Jira Base URL
+3. **Get API Token**: Visit https://id.atlassian.com/manage-profile/security/api-tokens
 
-Edit your configuration file to add your Jira URL:
+4. **Authenticate**:
+   ```bash
+   my-day auth --email your-email@example.com --token your-api-token
+   ```
 
-```yaml
-jira:
-  base_url: "https://your-company.atlassian.net"
-```
+5. **Start Using**:
+   ```bash
+   my-day sync     # Get your tickets
+   my-day report   # Generate report
+   ```
 
-### 3. Create API Token
+### Guided Setup (For First-Time Users)
 
-1. Go to https://id.atlassian.com/manage-profile/security/api-tokens
-2. Click "Create API token"
-3. Give it a name (e.g., "my-day CLI") and copy the token
+1. **Initialize with Guided Mode**
+   ```bash
+   my-day init --guided
+   ```
 
-### 4. Authenticate
+2. **Follow the Simple Instructions** displayed after initialization
 
-You can authenticate in three ways:
+3. **Edit one line** in the config file to set your Jira URL
 
-#### Option A: CLI Flags (Quick Setup)
-```bash
-my-day auth --email your-email@example.com --token your-api-token
-```
+4. **Authenticate and you're ready**:
+   ```bash
+   my-day auth --email your-email@example.com --token your-api-token
+   my-day sync && my-day report
+   ```
 
-#### Option B: Configuration File (Recommended)
-Add to your `~/.my-day/config.yaml`:
-```yaml
-jira:
-  base_url: "https://your-company.atlassian.net"
-  email: "your-email@example.com"
-  token: "your-api-token"
-```
-Then run:
-```bash
-my-day auth
-```
+### Alternative Authentication Methods
 
-#### Option C: Environment Variables (CI/CD Friendly)
+**Environment Variables** (CI/CD Friendly):
 ```bash
 export MY_DAY_JIRA_EMAIL="your-email@example.com"
 export MY_DAY_JIRA_TOKEN="your-api-token"
 my-day auth
 ```
 
-All methods save your credentials for future use.
-
-**🔒 Security Note:** For better security, consider using environment variables instead of storing tokens in config files, especially in shared environments.
-
-### 5. Sync Your Tickets
-
-```bash
-my-day sync
+**Configuration File** (Less Secure):
+```yaml
+jira:
+  base_url: "https://your-company.atlassian.net"
+  email: "your-email@example.com"
+  token: "your-api-token"
 ```
 
-### 6. Generate Daily Report
-
-```bash
-my-day report
-```
+**🔒 Security Note:** Environment variables are recommended for better security, especially in shared environments.
 
 ## 📋 Complete Command Reference
 
@@ -159,11 +153,16 @@ Available on all commands:
 | `--jira-email` | Jira email for API token | - |
 | `--jira-token` | Jira API token | - |
 | `--projects` | Jira project keys (comma-separated) | - |
-| `--llm-mode` | LLM mode (embedded\|ollama\|disabled) | `embedded` |
-| `--llm-model` | LLM model name | `tinyllama` |
+| `--llm-mode` | LLM mode (embedded\|ollama\|disabled) | `ollama` |
+| `--llm-model` | LLM model name | `qwen2.5:3b` |
 | `--llm-enabled` | Enable LLM features | `true` |
+| `--llm-debug` | Enable LLM debug mode | `false` |
+| `--llm-style` | LLM summary style (technical\|business\|brief) | `technical` |
+| `--llm-max-length` | Maximum LLM summary length (0 for no limit) | `0` |
+| `--llm-technical-details` | Include technical details in summaries | `true` |
+| `--llm-fallback` | LLM fallback strategy (graceful\|strict) | `graceful` |
 | `--ollama-url` | Ollama base URL | `http://localhost:11434` |
-| `--ollama-model` | Ollama model name | `llama3.1` |
+| `--ollama-model` | Ollama model name | `qwen2.5:3b` |
 | `--report-format` | Report format (console\|markdown) | `console` |
 | `--include-yesterday` | Include yesterday's work | `true` |
 | `--include-today` | Include today's work | `true` |
@@ -172,7 +171,7 @@ Available on all commands:
 ### Commands
 
 #### 1. `my-day init`
-Initialize configuration file
+Initialize configuration file with production-ready settings
 
 **Usage:**
 ```bash
@@ -181,10 +180,17 @@ my-day init [flags]
 
 **Flags:**
 - `--force` - Overwrite existing configuration file
+- `--guided` - Interactive guided setup with simplified configuration
 
 **Examples:**
 ```bash
+# Standard setup with comprehensive configuration
 my-day init
+
+# Guided setup for first-time users
+my-day init --guided
+
+# Force overwrite existing config
 my-day init --force
 ```
 
@@ -341,6 +347,45 @@ Show LLM configuration and status
 my-day llm status
 ```
 
+##### `my-day llm models`
+List available LLM models for the current mode
+
+**Usage:**
+```bash
+my-day llm models
+```
+
+##### `my-day llm switch`
+Switch to a different LLM model
+
+**Usage:**
+```bash
+my-day llm switch [model-name]
+```
+
+**Examples:**
+```bash
+my-day llm switch qwen2.5:7b
+my-day llm switch llama3.1:8b
+my-day llm switch enhanced-embedded
+```
+
+##### `my-day llm start`
+Start Docker LLM container
+
+**Usage:**
+```bash
+my-day llm start
+```
+
+##### `my-day llm stop`
+Stop Docker LLM container
+
+**Usage:**
+```bash
+my-day llm stop
+```
+
 #### 7. `my-day version`
 Show version information
 
@@ -359,11 +404,16 @@ All configuration can be overridden using environment variables with the `MY_DAY
 | `MY_DAY_JIRA_EMAIL` | Jira email for API token | - |
 | `MY_DAY_JIRA_TOKEN` | Jira API token | - |
 | `MY_DAY_JIRA_PROJECTS` | Comma-separated project keys | - |
-| `MY_DAY_LLM_MODE` | LLM mode | `embedded` |
-| `MY_DAY_LLM_MODEL` | LLM model name | `tinyllama` |
+| `MY_DAY_LLM_MODE` | LLM mode | `ollama` |
+| `MY_DAY_LLM_MODEL` | LLM model name | `qwen2.5:3b` |
 | `MY_DAY_LLM_ENABLED` | Enable LLM features | `true` |
+| `MY_DAY_LLM_DEBUG` | Enable LLM debug mode | `false` |
+| `MY_DAY_LLM_SUMMARY_STYLE` | LLM summary style | `technical` |
+| `MY_DAY_LLM_MAX_SUMMARY_LENGTH` | Maximum summary length | `0` |
+| `MY_DAY_LLM_INCLUDE_TECHNICAL_DETAILS` | Include technical details | `true` |
+| `MY_DAY_LLM_FALLBACK_STRATEGY` | LLM fallback strategy | `graceful` |
 | `MY_DAY_LLM_OLLAMA_BASE_URL` | Ollama base URL | `http://localhost:11434` |
-| `MY_DAY_LLM_OLLAMA_MODEL` | Ollama model name | `llama3.1` |
+| `MY_DAY_LLM_OLLAMA_MODEL` | Ollama model name | `qwen2.5:3b` |
 | `MY_DAY_REPORT_FORMAT` | Report format | `console` |
 | `MY_DAY_REPORT_INCLUDE_YESTERDAY` | Include yesterday's work | `true` |
 | `MY_DAY_REPORT_INCLUDE_TODAY` | Include today's work | `true` |
@@ -418,19 +468,18 @@ jira:
 
 llm:
   enabled: true
-  mode: "embedded"  # embedded, ollama, disabled
-  model: "tinyllama"
+  mode: "ollama"  # embedded, ollama, disabled
+  model: "qwen2.5:3b"
   # Enhanced LLM Configuration
-  config:
-    debug: false                     # Enable debug logging
-    summary_style: "technical"       # technical, business, brief
-    max_summary_length: 200         # Maximum summary length
-    include_technical_details: true  # Include technical terms
-    prioritize_recent_work: true     # Focus on recent activity
-    fallback_strategy: "graceful"    # Error handling strategy
+  debug: false                     # Enable debug logging
+  summary_style: "technical"       # technical, business, brief
+  max_summary_length: 0           # Maximum summary length (0 for no limit)
+  include_technical_details: true  # Include technical terms
+  prioritize_recent_work: true     # Focus on recent activity
+  fallback_strategy: "graceful"    # Error handling strategy
   ollama:
     base_url: "http://localhost:11434"
-    model: "llama3.1"
+    model: "qwen2.5:3b"
 
 report:
   format: "console"  # console, markdown
@@ -917,39 +966,172 @@ LLM Processing Report:
 
 **📋 For detailed setup instructions, see [Jira Setup Guide](docs/jira-setup.md)**
 
-## LLM Integration
+## 🧠 LLM Integration & Model Management
 
-### Embedded Mode (Default)
+my-day provides flexible LLM integration with easy model switching and configuration options.
 
-Uses a lightweight embedded model for basic ticket summarization. No additional setup required.
+### Quick Model Switching
 
-**Enhanced Features:**
-- **Technical Pattern Matching**: Recognizes DevOps terminology (AWS, Terraform, Kubernetes, etc.)
-- **Intelligent Summarization**: Context-aware comment analysis
-- **Debug Mode**: Detailed processing information with `--debug` flag
-- **Quality Indicators**: Summary quality scoring with `--show-quality` flag
+```bash
+# List available models for your current mode
+my-day llm models
 
-### Ollama Mode
+# Switch to a different model
+my-day llm switch qwen2.5:7b
 
-For more advanced summarization:
+# Test the new model
+my-day llm test
 
-1. Install [Ollama](https://ollama.ai/)
-2. Pull a model: `ollama pull llama3.1`
-3. Configure my-day:
-
-```yaml
-llm:
-  mode: "ollama"
-  ollama:
-    base_url: "http://localhost:11434"
-    model: "llama3.1"
+# Check current status
+my-day llm status
 ```
 
-### Disabled Mode
+### LLM Modes
+
+#### 1. Ollama Mode (Default - Recommended)
+
+High-quality AI summarization using Docker-based Ollama models.
+
+**Setup:**
+```bash
+# Auto-start Docker container with model
+my-day llm start
+
+# Or use CLI flags
+my-day report --llm-mode ollama --ollama-model qwen2.5:3b
+```
+
+**Available Models:**
+- **qwen2.5:3b** (1.9GB) - Fast, current default
+- **llama3.2:3b** (2.0GB) - Meta's efficient model
+- **phi3:3.8b** (2.3GB) - Microsoft's technical content model
+- **llama3.1:8b** (4.7GB) - Better understanding, slower
+- **codellama:7b** (3.8GB) - Specialized for code/technical content
+- **mistral:7b** (4.1GB) - General-purpose model
+
+**Model Management:**
+```bash
+# List available models
+my-day llm models
+
+# Switch models easily
+my-day llm switch llama3.1:8b
+my-day llm switch codellama:7b
+
+# Install new models via Ollama
+ollama pull mistral:7b
+```
+
+#### 2. Embedded Mode
+
+Lightweight built-in summarization for basic needs.
+
+**Setup:**
+```bash
+# Switch to embedded mode
+my-day report --llm-mode embedded --llm-model enhanced-embedded
+```
+
+**Available Models:**
+- **enhanced-embedded** - Pattern matching with technical term recognition
+- **basic-embedded** - Simple keyword extraction
+
+**Features:**
+- No external dependencies
+- Fast processing
+- Technical pattern matching
+- DevOps terminology recognition
+
+#### 3. Disabled Mode
+
+Disable AI features entirely:
+
+```bash
+# Disable via CLI
+my-day report --llm-enabled=false
+
+# Or via config
+llm:
+  enabled: false
+```
+
+### Advanced LLM Configuration
+
+#### CLI Flags for Fine-Tuning
+
+```bash
+# Customize LLM behavior on-the-fly
+my-day report \
+  --llm-mode ollama \
+  --ollama-model qwen2.5:7b \
+  --llm-style business \
+  --llm-max-length 150 \
+  --llm-debug \
+  --llm-technical-details=false
+
+# Quick model comparison
+my-day report --ollama-model llama3.1:8b --debug
+my-day report --ollama-model codellama:7b --debug
+```
+
+#### Configuration File Options
 
 ```yaml
 llm:
-  enabled: false
+  enabled: true
+  mode: "ollama"
+  model: "qwen2.5:3b"
+  debug: false
+  summary_style: "technical"      # technical, business, brief
+  max_summary_length: 0          # 0 for no limit
+  include_technical_details: true
+  prioritize_recent_work: true
+  fallback_strategy: "graceful"   # graceful, strict
+  ollama:
+    base_url: "http://localhost:11434"
+    model: "qwen2.5:3b"
+```
+
+#### Environment Variables
+
+```bash
+# Switch models via environment
+export MY_DAY_LLM_MODE="ollama"
+export MY_DAY_LLM_OLLAMA_MODEL="mistral:7b"
+export MY_DAY_LLM_SUMMARY_STYLE="business"
+export MY_DAY_LLM_DEBUG="true"
+
+my-day report
+```
+
+### Model Recommendations by Use Case
+
+#### DevOps/Infrastructure Teams
+```bash
+# Best for technical summaries with infrastructure terms
+my-day llm switch codellama:7b
+my-day report --llm-style technical --llm-technical-details
+```
+
+#### Management/Business Users  
+```bash
+# Better for business-focused summaries
+my-day llm switch qwen2.5:7b
+my-day report --llm-style business --llm-max-length 100
+```
+
+#### Quick Daily Standups
+```bash
+# Fast model for quick morning reports
+my-day llm switch qwen2.5:3b
+my-day report --llm-style brief
+```
+
+#### Detailed Analysis
+```bash
+# High-quality model for comprehensive analysis
+my-day llm switch llama3.1:8b
+my-day report --llm-style technical --debug --show-quality
 ```
 
 ### Enhanced LLM Features
@@ -1298,10 +1480,39 @@ A: Yes! Use `--report-format markdown` or modify the configuration. You can also
 
 #### Q: How do I improve LLM summary quality?
 A: 
-- Add detailed comments to Jira tickets
-- Use technical terms (AWS, Terraform, Kubernetes)
-- Include specific actions (deployed, configured, tested)
-- Enable debug mode to see quality metrics
+- **Switch to a better model**: `my-day llm switch codellama:7b` or `my-day llm switch llama3.1:8b`
+- **Add detailed comments** to Jira tickets
+- **Use technical terms** (AWS, Terraform, Kubernetes)
+- **Include specific actions** (deployed, configured, tested)
+- **Enable debug mode** to see quality metrics: `my-day report --debug --show-quality`
+- **Try different summary styles**: `my-day report --llm-style technical` or `--llm-style business`
+
+#### Q: How do I switch between LLM models?
+A: Multiple ways to switch models:
+```bash
+# Discover available models
+my-day llm models
+
+# Switch via command
+my-day llm switch qwen2.5:7b
+
+# Test via CLI flag
+my-day report --ollama-model mistral:7b
+
+# Set via environment
+export MY_DAY_LLM_OLLAMA_MODEL="codellama:7b"
+
+# Update config file
+# Edit ~/.my-day/config.yaml ollama.model setting
+```
+
+#### Q: Which LLM model should I use?
+A: Depends on your needs:
+- **qwen2.5:3b** - Good default, fast and balanced
+- **codellama:7b** - Best for technical/DevOps content
+- **llama3.1:8b** - Higher quality, slower
+- **phi3:3.8b** - Good for Microsoft tech stacks
+- **embedded** - No setup required, basic functionality
 
 #### Q: Can I run this in CI/CD?
 A: Yes! You can copy the auth.json file or use a dedicated service account with API token. See [Automation & Scripting](#automation--scripting) examples.
