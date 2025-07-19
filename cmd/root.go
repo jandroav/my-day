@@ -98,6 +98,36 @@ func initConfig() {
 	// Environment variables
 	viper.SetEnvPrefix("MY_DAY")
 	viper.AutomaticEnv()
+	
+	// Bind environment variables explicitly for nested keys
+	// Jira configuration
+	viper.BindEnv("jira.email", "MY_DAY_JIRA_EMAIL")
+	viper.BindEnv("jira.token", "MY_DAY_JIRA_TOKEN")
+	viper.BindEnv("jira.base_url", "MY_DAY_JIRA_BASE_URL")
+	viper.BindEnv("jira.projects", "MY_DAY_JIRA_PROJECTS")
+	
+	// LLM configuration
+	viper.BindEnv("llm.mode", "MY_DAY_LLM_MODE")
+	viper.BindEnv("llm.model", "MY_DAY_LLM_MODEL")
+	viper.BindEnv("llm.enabled", "MY_DAY_LLM_ENABLED")
+	viper.BindEnv("llm.debug", "MY_DAY_LLM_DEBUG")
+	viper.BindEnv("llm.summary_style", "MY_DAY_LLM_SUMMARY_STYLE")
+	viper.BindEnv("llm.max_summary_length", "MY_DAY_LLM_MAX_SUMMARY_LENGTH")
+	viper.BindEnv("llm.include_technical_details", "MY_DAY_LLM_INCLUDE_TECHNICAL_DETAILS")
+	viper.BindEnv("llm.prioritize_recent_work", "MY_DAY_LLM_PRIORITIZE_RECENT_WORK")
+	viper.BindEnv("llm.fallback_strategy", "MY_DAY_LLM_FALLBACK_STRATEGY")
+	viper.BindEnv("llm.ollama.base_url", "MY_DAY_LLM_OLLAMA_BASE_URL")
+	viper.BindEnv("llm.ollama.model", "MY_DAY_LLM_OLLAMA_MODEL")
+	
+	// Report configuration
+	viper.BindEnv("report.format", "MY_DAY_REPORT_FORMAT")
+	viper.BindEnv("report.include_yesterday", "MY_DAY_REPORT_INCLUDE_YESTERDAY")
+	viper.BindEnv("report.include_today", "MY_DAY_REPORT_INCLUDE_TODAY")
+	viper.BindEnv("report.include_in_progress", "MY_DAY_REPORT_INCLUDE_IN_PROGRESS")
+	viper.BindEnv("report.export.enabled", "MY_DAY_REPORT_EXPORT_ENABLED")
+	viper.BindEnv("report.export.folder_path", "MY_DAY_REPORT_EXPORT_FOLDER_PATH")
+	viper.BindEnv("report.export.filename_date", "MY_DAY_REPORT_EXPORT_FILENAME_DATE")
+	viper.BindEnv("report.export.tags", "MY_DAY_REPORT_EXPORT_TAGS")
 
 	// Set defaults
 	config.SetDefaults()

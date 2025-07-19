@@ -103,11 +103,8 @@ func syncTickets(cmd *cobra.Command) error {
 
 	maxResults, _ := cmd.Flags().GetInt("max-results")
 	
-	// Extract project keys from configuration
-	var projectKeys []string
-	for _, project := range cfg.Jira.Projects {
-		projectKeys = append(projectKeys, project.Key)
-	}
+	// Get project keys directly from configuration (already a slice of strings)
+	projectKeys := cfg.Jira.Projects
 
 	if len(projectKeys) == 0 {
 		color.Yellow("No project keys configured. Add projects to your config file.")

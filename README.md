@@ -469,11 +469,10 @@ jira:
   email: "your-email@example.com"                   # CLI: --jira-email
   token: "your-api-token"                           # CLI: --jira-token
   projects:                                         # CLI: --projects
-    - key: "DEVOPS"
-      name: "DevOps Team"
-    - key: "INTEROP"
-      name: "Interop Team"
-    # Add more projects...
+    - "DEVOPS"
+    - "INTEROP"
+    - "FOUND"
+    # Add more project keys...
   # Custom Fields Configuration (used with --field flag)
   custom_fields:
     squad:
@@ -573,10 +572,9 @@ jira:
   base_url: "https://your-company.atlassian.net"
   email: "your-email@example.com"
   projects:
-    - key: "DEVOPS"
-      name: "DevOps Team"
-    - key: "INTEROP" 
-      name: "Interop Team"
+    - "DEVOPS"
+    - "INTEROP"
+    - "FOUND"
   
   # Custom Fields Configuration
   custom_fields:

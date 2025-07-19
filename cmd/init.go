@@ -93,30 +93,21 @@ func generateConfigTemplate() string {
 # =============================================================================
 jira:
   # REQUIRED: Change this to your Jira Cloud instance URL
-  base_url: "https://your-instance.atlassian.net"
+  base_url: "https://your-instance.atlassian.net"  # env: MY_DAY_JIRA_BASE_URL
   
   # OPTIONAL: Set email/token here or use environment variables/CLI flags
   # For security, consider using environment variables instead:
   # export MY_DAY_JIRA_EMAIL="your-email@example.com"
   # export MY_DAY_JIRA_TOKEN="your-api-token"
-  email: ""    # Your Jira email address
-  token: ""    # Your Jira API token
+  email: ""    # Your Jira email address (env: MY_DAY_JIRA_EMAIL)
+  token: ""    # Your Jira API token (env: MY_DAY_JIRA_TOKEN)
   
   # Projects to track (customize for your organization)
-  projects:
-    - key: "DEVOPS"
-      name: "DevOps Team"
-    - key: "INTEROP"
-      name: "Interop Team"
-    - key: "FOUND"
-      name: "Foundation Team"
-    - key: "ENT"
-      name: "Enterprise Team"
-    - key: "LBIO"
-      name: "LBIO Team"
+  projects:    # env: MY_DAY_JIRA_PROJECTS (comma-separated)
+    - "DAT"
+    - "IO"
     # Add your own projects:
-    # - key: "PROJ"
-    #   name: "Your Project"
+    # - "PROJ"
   
   # Custom Fields Configuration (for report grouping)
   # Find field IDs in Jira: Admin > Issues > Custom Fields
@@ -146,22 +137,22 @@ jira:
 # LLM (AI) CONFIGURATION
 # =============================================================================
 llm:
-  enabled: true
-  mode: "ollama"  # ollama (Docker-based), embedded (built-in), disabled
-  model: "qwen2.5:3b"  # Default model
+  enabled: true                                      # env: MY_DAY_LLM_ENABLED
+  mode: "ollama"                                     # env: MY_DAY_LLM_MODE (ollama, embedded, disabled)
+  model: "qwen2.5:3b"                                # env: MY_DAY_LLM_MODEL
   
   # LLM Behavior Settings
-  debug: false                      # Enable debug output
-  summary_style: "technical"        # technical, business, brief
-  max_summary_length: 0            # 0 = no limit, or specify max chars
-  include_technical_details: true   # Include DevOps terms (AWS, K8s, etc)
-  prioritize_recent_work: true      # Focus on recent activity
-  fallback_strategy: "graceful"     # graceful (fallback on errors), strict
+  debug: false                                       # env: MY_DAY_LLM_DEBUG
+  summary_style: "technical"                         # env: MY_DAY_LLM_SUMMARY_STYLE (technical, business, brief)
+  max_summary_length: 0                             # env: MY_DAY_LLM_MAX_SUMMARY_LENGTH (0 = no limit)
+  include_technical_details: true                    # env: MY_DAY_LLM_INCLUDE_TECHNICAL_DETAILS
+  prioritize_recent_work: true                       # env: MY_DAY_LLM_PRIORITIZE_RECENT_WORK
+  fallback_strategy: "graceful"                      # env: MY_DAY_LLM_FALLBACK_STRATEGY (graceful, strict)
   
   # Ollama Configuration (Docker-based LLM)
   ollama:
-    base_url: "http://localhost:11434"
-    model: "qwen2.5:3b"  # Available: qwen2.5:3b, llama3.1:8b, codellama:7b
+    base_url: "http://localhost:11434"               # env: MY_DAY_LLM_OLLAMA_BASE_URL
+    model: "qwen2.5:3b"                              # env: MY_DAY_LLM_OLLAMA_MODEL
     
   # Model Recommendations:
   # - qwen2.5:3b (1.9GB) - Fast, good balance (default)
@@ -173,17 +164,17 @@ llm:
 # REPORT CONFIGURATION
 # =============================================================================
 report:
-  format: "console"  # console (colorful terminal), markdown
-  include_yesterday: true   # Include yesterday's work
-  include_today: true       # Include today's work
-  include_in_progress: true # Always include in-progress tickets
+  format: "console"                                  # env: MY_DAY_REPORT_FORMAT (console, markdown)
+  include_yesterday: true                            # env: MY_DAY_REPORT_INCLUDE_YESTERDAY
+  include_today: true                                # env: MY_DAY_REPORT_INCLUDE_TODAY
+  include_in_progress: true                          # env: MY_DAY_REPORT_INCLUDE_IN_PROGRESS
   
   # Obsidian Export Settings
   export:
-    enabled: false  # Enable automatic export to Obsidian
-    folder_path: "~/Documents/my-day-reports"  # Export folder
-    filename_date: "2006-01-02"  # Date format for filenames (YYYY-MM-DD)
-    tags: ["report", "my-day", "standup"]  # Tags for exported files
+    enabled: false                                   # env: MY_DAY_REPORT_EXPORT_ENABLED
+    folder_path: "~/Documents/my-day-reports"        # env: MY_DAY_REPORT_EXPORT_FOLDER_PATH
+    filename_date: "2006-01-02"                      # env: MY_DAY_REPORT_EXPORT_FILENAME_DATE
+    tags: ["report", "my-day", "standup"]            # env: MY_DAY_REPORT_EXPORT_TAGS (comma-separated)
 
 # =============================================================================
 # ADVANCED SETTINGS
@@ -191,8 +182,8 @@ report:
 # Most users won't need to modify these settings
 
 # Global settings
-verbose: false  # Enable verbose output
-quiet: false    # Enable quiet mode
+verbose: false                                       # env: MY_DAY_VERBOSE
+quiet: false                                         # env: MY_DAY_QUIET
 
 # =============================================================================
 # USAGE EXAMPLES
@@ -239,51 +230,49 @@ func generateGuidedConfig() string {
 # =============================================================================
 jira:
   # TODO: Change this to your Jira Cloud URL
-  base_url: "https://your-instance.atlassian.net"
+  base_url: "https://your-instance.atlassian.net"   # env: MY_DAY_JIRA_BASE_URL
   
   # Authentication (recommended: use environment variables for security)
   # Set these via environment or use 'my-day auth' command
-  email: ""    # Your Jira email
-  token: ""    # Your Jira API token
+  email: ""    # Your Jira email (env: MY_DAY_JIRA_EMAIL)
+  token: ""    # Your Jira API token (env: MY_DAY_JIRA_TOKEN)
   
   # TODO: Update these project keys to match your organization
-  projects:
-    - key: "DEVOPS"
-      name: "DevOps Team"
-    - key: "PROJ"
-      name: "Your Main Project"
+  projects:    # env: MY_DAY_JIRA_PROJECTS (comma-separated)
+    - "DAT"
+    - "IO"
 
 # =============================================================================
 # LLM (AI) CONFIGURATION
 # =============================================================================
 llm:
-  enabled: true
-  mode: "ollama"  # Docker-based AI for better summaries
-  model: "qwen2.5:3b"
+  enabled: true                                      # env: MY_DAY_LLM_ENABLED
+  mode: "ollama"                                     # env: MY_DAY_LLM_MODE (ollama, embedded, disabled)
+  model: "qwen2.5:3b"                                # env: MY_DAY_LLM_MODEL
   
   # AI Behavior
-  summary_style: "technical"        # technical, business, brief
-  include_technical_details: true   # Include DevOps terminology
+  summary_style: "technical"                         # env: MY_DAY_LLM_SUMMARY_STYLE (technical, business, brief)
+  include_technical_details: true                    # env: MY_DAY_LLM_INCLUDE_TECHNICAL_DETAILS
   
   # Docker LLM Settings
   ollama:
-    base_url: "http://localhost:11434"
-    model: "qwen2.5:3b"
+    base_url: "http://localhost:11434"               # env: MY_DAY_LLM_OLLAMA_BASE_URL
+    model: "qwen2.5:3b"                              # env: MY_DAY_LLM_OLLAMA_MODEL
 
 # =============================================================================
 # REPORT CONFIGURATION
 # =============================================================================
 report:
-  format: "console"
-  include_yesterday: true
-  include_today: true
-  include_in_progress: true
+  format: "console"                                  # env: MY_DAY_REPORT_FORMAT (console, markdown)
+  include_yesterday: true                            # env: MY_DAY_REPORT_INCLUDE_YESTERDAY
+  include_today: true                                # env: MY_DAY_REPORT_INCLUDE_TODAY
+  include_in_progress: true                          # env: MY_DAY_REPORT_INCLUDE_IN_PROGRESS
   
   # Obsidian Export (optional)
   export:
-    enabled: false
-    folder_path: "~/Documents/my-day-reports"
-    tags: ["standup", "my-day"]
+    enabled: false                                   # env: MY_DAY_REPORT_EXPORT_ENABLED
+    folder_path: "~/Documents/my-day-reports"        # env: MY_DAY_REPORT_EXPORT_FOLDER_PATH
+    tags: ["standup", "my-day"]                      # env: MY_DAY_REPORT_EXPORT_TAGS (comma-separated)
 
 # =============================================================================
 # Ready to use! Try these commands after setting your Jira URL:

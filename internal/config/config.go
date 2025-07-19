@@ -16,14 +16,8 @@ type JiraConfig struct {
 	BaseURL      string                 `mapstructure:"base_url" yaml:"base_url"`
 	Email        string                 `mapstructure:"email" yaml:"email"`
 	Token        string                 `mapstructure:"token" yaml:"token"`
-	Projects     []ProjectInfo          `mapstructure:"projects" yaml:"projects"`
+	Projects     []string               `mapstructure:"projects" yaml:"projects"`
 	CustomFields map[string]CustomField `mapstructure:"custom_fields" yaml:"custom_fields"`
-}
-
-// ProjectInfo represents a Jira project
-type ProjectInfo struct {
-	Key  string `mapstructure:"key" yaml:"key"`
-	Name string `mapstructure:"name" yaml:"name"`
 }
 
 // CustomField represents a custom field configuration

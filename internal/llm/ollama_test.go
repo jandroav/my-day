@@ -358,8 +358,8 @@ func TestPromptStyleGeneration(t *testing.T) {
 	}
 }
 
-// TestTechnicalTermExtraction tests technical term extraction in prompts
-func TestTechnicalTermExtraction(t *testing.T) {
+// TestOllamaTechnicalTermExtraction tests technical term extraction in prompts
+func TestOllamaTechnicalTermExtraction(t *testing.T) {
 	config := LLMConfig{
 		IncludeTechnicalDetails: true,
 	}
@@ -413,7 +413,7 @@ func TestTechnicalTermExtraction(t *testing.T) {
 }
 
 // TestActivityTypeDetection tests activity type detection from comments
-func TestActivityTypeDetection(t *testing.T) {
+func TestOllamaActivityTypeDetection(t *testing.T) {
 	config := LLMConfig{}
 	client := NewOllamaClientWithConfig(config)
 	

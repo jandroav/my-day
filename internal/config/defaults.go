@@ -8,13 +8,10 @@ func SetDefaults() {
 	viper.SetDefault("jira.email", "")
 	viper.SetDefault("jira.token", "")
 	
-	// Default projects for DevOps teams
-	viper.SetDefault("jira.projects", []map[string]string{
-		{"key": "DEVOPS", "name": "DevOps Team"},
-		{"key": "INTEROP", "name": "Interop Team"},
-		{"key": "FOUND", "name": "Foundation Team"},
-		{"key": "ENT", "name": "Enterprise Team"},
-		{"key": "LBIO", "name": "LBIO Team"},
+	// Default projects for DevOps teams (project keys only)
+	viper.SetDefault("jira.projects", []string{
+		"DAT",
+		"IO",
 	})
 
 	// LLM defaults (Docker-based by default for better summarization)

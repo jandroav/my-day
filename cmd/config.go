@@ -95,8 +95,8 @@ func showConfiguration(cmd *cobra.Command) error {
 	color.Yellow("Jira:")
 	color.White("  Base URL: %s", cfg.Jira.BaseURL)
 	color.White("  Projects:")
-	for _, project := range cfg.Jira.Projects {
-		color.White("    - %s (%s)", project.Key, project.Name)
+	for _, projectKey := range cfg.Jira.Projects {
+		color.White("    - %s", projectKey)
 	}
 	fmt.Println()
 

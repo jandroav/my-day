@@ -390,7 +390,8 @@ Summary: %s`,
 		prompt += fmt.Sprintf("\nDescription: %s", issue.Fields.Description.Text)
 	}
 	
-	prompt += "\n\nProvide a 1-2 sentence summary suitable for a standup report:"
+	prompt += "\n\nIMPORTANT: Write the summary in first person (using 'I' statements) as if you are the person working on this ticket.\n"
+	prompt += "Provide a 1-2 sentence summary suitable for a standup report:"
 	
 	return prompt
 }
@@ -409,7 +410,8 @@ func (o *OllamaClient) buildWorklogPrompt(worklogs []jira.WorklogEntry) string {
 			worklog.Comment)
 	}
 	
-	prompt += "\nProvide a brief summary of the work accomplished:"
+	prompt += "\nIMPORTANT: Write the summary in first person (using 'I' statements) as if you are the person who did this work.\n"
+	prompt += "Provide a brief summary of the work accomplished:"
 	
 	return prompt
 }
@@ -433,7 +435,8 @@ func (o *OllamaClient) buildCommentsPrompt(comments []jira.Comment) string {
 		prompt += fmt.Sprintf("Comment at %s: %s\n", timeStr, comment.Body.Text)
 	}
 	
-	prompt += "\nProvide a 1-2 sentence summary of the work progress described in these comments:"
+	prompt += "\nIMPORTANT: Write the summary in first person (using 'I' statements) as if you are the person who did the work.\n"
+	prompt += "Provide a 1-2 sentence summary of the work progress described in these comments:"
 	
 	return prompt
 }
@@ -494,6 +497,7 @@ func (o *OllamaClient) buildTechnicalStylePrompt(issues []jira.Issue, comments [
 		prompt += "Use technical terminology appropriately and mention specific tools, services, or technologies involved.\n\n"
 	}
 	
+	prompt += "IMPORTANT: Write the summary in first person (using 'I' statements) as if you are the person who did the work. This should sound natural when read aloud in a standup meeting.\n\n"
 	prompt += "Technical Summary:"
 	
 	return prompt
@@ -521,6 +525,7 @@ func (o *OllamaClient) buildBusinessStylePrompt(issues []jira.Issue, comments []
 	prompt += "4. Next steps toward project milestones\n\n"
 	
 	prompt += "Avoid technical jargon and focus on business value and outcomes.\n\n"
+	prompt += "IMPORTANT: Write the summary in first person (using 'I' statements) as if you are the person who did the work. This should sound natural when read aloud in a standup meeting.\n\n"
 	prompt += "Business Summary:"
 	
 	return prompt
@@ -540,6 +545,7 @@ func (o *OllamaClient) buildBriefStylePrompt(issues []jira.Issue, comments []jir
 	prompt += "3. Any immediate blockers\n\n"
 	
 	prompt += "Keep it concise and focus on high-impact activities only.\n\n"
+	prompt += "IMPORTANT: Write the summary in first person (using 'I' statements) as if you are the person who did the work. This should sound natural when read aloud in a standup meeting.\n\n"
 	prompt += "Brief Summary:"
 	
 	return prompt
