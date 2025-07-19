@@ -8,6 +8,7 @@ import (
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 	"my-day/internal/config"
+	"my-day/internal/jira"
 	"my-day/internal/report"
 )
 
@@ -18,7 +19,13 @@ var reportCmd = &cobra.Command{
 	Long: `Generate generates a daily standup report based on your recent Jira activity.
 
 The report includes tickets you've worked on, their current status, and
-optionally AI-generated summaries of your progress.`,
+optionally AI-generated summaries of your progress.
+
+Data comes from the local cache populated by 'my-day sync'. Use --since to 
+filter which tickets are included based on their last update time.
+
+Reports are automatically cached to improve performance and reduce LLM API calls.
+Use --no-cache to disable caching or --cache-only to use only cached reports.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		if err := generateReport(cmd); err != nil {
 			color.Red("Report generation failed: %v", err)
@@ -38,6 +45,13 @@ func init() {
 	reportCmd.Flags().Bool("debug", false, "Enable debug output for LLM processing")
 	reportCmd.Flags().Bool("show-quality", false, "Show summary quality indicators")
 	reportCmd.Flags().Bool("verbose", false, "Show verbose LLM processing information")
+	
+	// Cache-specific flags
+	reportCmd.Flags().Bool("no-cache", false, "Disable report caching (always generate fresh report)")
+	reportCmd.Flags().Bool("cache-only", false, "Only use cached reports (fail if no cache exists)")
+	
+	// Data filtering flags
+	reportCmd.Flags().Duration("since", 7*24*time.Hour, "Include tickets and worklogs updated since this duration ago")
 	
 	// Field grouping flags
 	reportCmd.Flags().String("field", "", "Group report by specified Jira custom field (e.g., 'squad', 'team', 'component')")
@@ -82,6 +96,20 @@ func generateReport(cmd *cobra.Command) error {
 	} else {
 		targetDate = time.Now()
 	}
+	
+	// Get flags for feedback
+	debug, _ := cmd.Flags().GetBool("debug")
+	verbose, _ := cmd.Flags().GetBool("verbose")
+	
+	// Filter cached data based on --since flag
+	since, _ := cmd.Flags().GetDuration("since")
+	sinceTime := time.Now().Add(-since)
+	originalIssueCount := len(cache.IssuesWithComments)
+	cache = filterCacheDataBySince(cache, sinceTime, targetDate)
+	
+	if verbose || debug {
+		color.White("Filtered from %d to %d issues using --since %v", originalIssueCount, len(cache.IssuesWithComments), since)
+	}
 
 	// Determine LLM settings
 	llmEnabled := cfg.LLM.Enabled
@@ -90,10 +118,14 @@ func generateReport(cmd *cobra.Command) error {
 	}
 
 	detailed, _ := cmd.Flags().GetBool("detailed")
-	debug, _ := cmd.Flags().GetBool("debug")
 	showQuality, _ := cmd.Flags().GetBool("show-quality")
-	verbose, _ := cmd.Flags().GetBool("verbose")
 	groupByField, _ := cmd.Flags().GetString("field")
+	
+	// Cache flags
+	noCache, _ := cmd.Flags().GetBool("no-cache")
+	cacheOnly, _ := cmd.Flags().GetBool("cache-only")
+	useCache := !noCache
+	
 	
 	// Export flags
 	exportEnabled, _ := cmd.Flags().GetBool("export")
@@ -140,8 +172,9 @@ func generateReport(cmd *cobra.Command) error {
 	} else {
 		color.White("Report date: %s (today)", targetDate.Format("2006-01-02"))
 	}
+	color.White("Including tickets updated since: %s (last %v)", sinceTime.Format("2006-01-02 15:04"), since)
 
-	// Generate report with comments if available
+	// Generate report with comments if available, using caching
 	var reportContent string
 	
 	if len(cache.IssuesWithComments) > 0 {
@@ -154,16 +187,47 @@ func generateReport(cmd *cobra.Command) error {
 			})
 		}
 		
-		// Use enhanced context generation if debug or quality flags are enabled
-		if debug || showQuality || verbose {
-			reportContent, err = generator.GenerateWithEnhancedContext(reportIssuesWithComments, cache.Worklogs, targetDate)
+		// Check if cache-only mode and no cache exists
+		if cacheOnly {
+			cacheManager := generator.GetCacheManager()
+			if cacheManager != nil {
+				// Create comments map for cache lookup
+				commentsMap := make(map[string][]jira.Comment)
+				var issues []jira.Issue
+				for _, iwc := range reportIssuesWithComments {
+					issues = append(issues, iwc.Issue)
+					commentsMap[iwc.Issue.Key] = iwc.Comments
+				}
+				
+				cachedReport, cacheErr := cacheManager.FindReport(generator.GetConfig(), issues, commentsMap, cache.Worklogs, targetDate)
+				if cacheErr != nil || cachedReport == nil {
+					return fmt.Errorf("no cached report found for %s (cache-only mode)", targetDate.Format("2006-01-02"))
+				}
+				reportContent = cachedReport.Content
+			} else {
+				return fmt.Errorf("cache manager not available (cache-only mode)")
+			}
 		} else {
-			// Use standard comment-enhanced report generation
-			reportContent, err = generator.GenerateWithComments(reportIssuesWithComments, cache.Worklogs, targetDate)
+			// Use the new caching-aware generation method
+			reportContent, err = generator.GenerateWithCommentsAndCache(reportIssuesWithComments, cache.Worklogs, targetDate, useCache)
 		}
 	} else {
-		// Fallback to basic report generation
-		reportContent, err = generator.Generate(cache.Issues, cache.Worklogs, targetDate)
+		// Fallback to basic report generation with caching
+		if cacheOnly {
+			cacheManager := generator.GetCacheManager()
+			if cacheManager != nil {
+				commentsMap := make(map[string][]jira.Comment)
+				cachedReport, cacheErr := cacheManager.FindReport(generator.GetConfig(), cache.Issues, commentsMap, cache.Worklogs, targetDate)
+				if cacheErr != nil || cachedReport == nil {
+					return fmt.Errorf("no cached report found for %s (cache-only mode)", targetDate.Format("2006-01-02"))
+				}
+				reportContent = cachedReport.Content
+			} else {
+				return fmt.Errorf("cache manager not available (cache-only mode)")
+			}
+		} else {
+			reportContent, err = generator.GenerateWithCache(cache.Issues, cache.Worklogs, targetDate, useCache)
+		}
 	}
 	
 	if err != nil {
@@ -193,4 +257,58 @@ func generateReport(cmd *cobra.Command) error {
 	}
 
 	return nil
+}
+
+// filterCacheDataBySince filters cached data based on the since duration
+func filterCacheDataBySince(cache *TicketCache, sinceTime time.Time, targetDate time.Time) *TicketCache {
+	// Create a new cache with filtered data
+	filteredCache := &TicketCache{
+		LastSync:           cache.LastSync,
+		Issues:             []jira.Issue{},
+		IssuesWithComments: []IssueWithComments{},
+		Worklogs:           []jira.WorklogEntry{},
+	}
+	
+	// Filter issues based on update time
+	for _, issue := range cache.Issues {
+		if issue.Fields.Updated.Time.After(sinceTime) {
+			filteredCache.Issues = append(filteredCache.Issues, issue)
+		}
+	}
+	
+	// Filter issues with comments based on issue update time and comment creation time
+	for _, iwc := range cache.IssuesWithComments {
+		// Check if the issue itself was updated within the since period
+		if iwc.Issue.Fields.Updated.Time.After(sinceTime) {
+			// Filter comments to only include those within the since period or target date
+			var filteredComments []jira.Comment
+			todayStart := targetDate.Truncate(24 * time.Hour)
+			todayEnd := todayStart.Add(24 * time.Hour)
+			
+			for _, comment := range iwc.Comments {
+				// Include comments from target date or within since period
+				if (comment.Created.Time.After(todayStart) && comment.Created.Time.Before(todayEnd)) ||
+				   comment.Created.Time.After(sinceTime) {
+					filteredComments = append(filteredComments, comment)
+				}
+			}
+			
+			// Only include the issue if it has filtered comments or was recently updated
+			if len(filteredComments) > 0 || iwc.Issue.Fields.Updated.Time.After(sinceTime) {
+				filteredCache.IssuesWithComments = append(filteredCache.IssuesWithComments, IssueWithComments{
+					Issue:    iwc.Issue,
+					Comments: filteredComments,
+				})
+			}
+		}
+	}
+	
+	// Filter worklogs based on start time
+	for _, worklog := range cache.Worklogs {
+		if worklog.Started.Time.After(sinceTime) {
+			filteredCache.Worklogs = append(filteredCache.Worklogs, worklog)
+		}
+	}
+	
+	return filteredCache
 }
