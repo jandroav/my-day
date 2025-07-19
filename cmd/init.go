@@ -99,8 +99,8 @@ func initializeConfig(cmd *cobra.Command) error {
 
 	color.Green("✓ Configuration file created at: %s", configFile)
 	color.Cyan("\nNext steps:")
-	color.White("1. Edit the configuration file to set your Jira URL and OAuth credentials")
-	color.White("2. Run 'my-day auth' to authenticate with Jira")
+	color.White("1. Edit the configuration file to set your Jira URL")
+	color.White("2. Run 'my-day auth --email your-email@example.com --token your-api-token' to authenticate")
 	color.White("3. Run 'my-day sync' to pull your tickets")
 	color.White("4. Run 'my-day report' to generate your daily report")
 

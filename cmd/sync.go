@@ -52,6 +52,7 @@ func init() {
 	syncCmd.Flags().Bool("force", false, "Force sync even if recently synced")
 	syncCmd.Flags().Bool("worklog", true, "Include worklog entries")
 	syncCmd.Flags().Duration("since", 7*24*time.Hour, "Sync tickets updated since this duration ago")
+	syncCmd.Flags().Duration("comments-since", 24*time.Hour, "Look for your comments since this duration ago")
 }
 
 func syncTickets(cmd *cobra.Command) error {
@@ -115,9 +116,12 @@ func syncTickets(cmd *cobra.Command) error {
 
 	color.White("Fetching tickets from projects: %v", projectKeys)
 
-	// Fetch issues with today's comments
-	color.White("Filtering for tickets with your comments today...")
-	searchResponse, err := client.GetMyIssuesWithTodaysComments(ctx, projectKeys, maxResults)
+	// Fetch issues with recent comments
+	commentsSince, _ := cmd.Flags().GetDuration("comments-since")
+	sinceTime := time.Now().Add(-commentsSince)
+	
+	color.White("Searching for tickets updated since %s...", sinceTime.Format("2006-01-02"))
+	searchResponse, err := client.GetMyIssuesWithTodaysComments(ctx, projectKeys, maxResults, sinceTime)
 	if err != nil {
 		return fmt.Errorf("failed to fetch issues: %w", err)
 	}
@@ -125,14 +129,21 @@ func syncTickets(cmd *cobra.Command) error {
 	color.Green("✓ Found %d issues with your comments today", len(searchResponse.Issues))
 
 	// Fetch comments for each issue
-	color.White("Fetching today's comments for each issue...")
+	commentsSince, _ := cmd.Flags().GetDuration("comments-since")
+	sinceTime := time.Now().Add(-commentsSince)
+	
+	color.White("Fetching your comments from the last %v...", commentsSince)
 	var issuesWithComments []IssueWithComments
-	today := time.Now().Truncate(24 * time.Hour)
 	
 	// Get current user info for comment filtering
 	userInfo, err := client.GetCurrentUser(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to get current user: %w", err)
+	}
+	
+	if verbose, _ := cmd.Flags().GetBool("verbose"); verbose {
+		color.White("Looking for comments by user: %s (ID: %s)", userInfo.DisplayName, userInfo.AccountID)
+		color.White("Filtering for comments after: %s", sinceTime.Format("2006-01-02 15:04:05"))
 	}
 	
 	for _, issue := range searchResponse.Issues {
@@ -145,19 +156,38 @@ func syncTickets(cmd *cobra.Command) error {
 		// Filter comments to only include today's comments by the current user
 		var todaysComments []jira.Comment
 		for _, comment := range allComments {
+			if verbose, _ := cmd.Flags().GetBool("verbose"); verbose && len(allComments) > 0 {
+				color.White("  Comment by %s (%s) at %s", 
+					comment.Author.DisplayName, 
+					comment.Author.AccountID,
+					comment.Created.Time.Format("2006-01-02 15:04:05"))
+			}
+			
 			if comment.Author.AccountID == userInfo.AccountID && 
-			   comment.Created.Time.After(today) {
+			   comment.Created.Time.After(sinceTime) {
 				todaysComments = append(todaysComments, comment)
+				if verbose, _ := cmd.Flags().GetBool("verbose"); verbose {
+					color.Green("    ✓ This comment matches!")
+				}
 			}
 		}
 		
-		issuesWithComments = append(issuesWithComments, IssueWithComments{
-			Issue:    issue,
-			Comments: todaysComments,
-		})
+		// Only include issues that have comments from the current user today
+		if len(todaysComments) > 0 {
+			issuesWithComments = append(issuesWithComments, IssueWithComments{
+				Issue:    issue,
+				Comments: todaysComments,
+			})
+		}
 	}
 	
-	color.Green("✓ Fetched comments for %d issues", len(issuesWithComments))
+	if len(issuesWithComments) == 0 {
+		color.Yellow("✓ No issues found with your comments in the last %v", commentsSince)
+		color.White("  Try adding a comment to a Jira ticket or use --comments-since to look further back.")
+		color.White("  Example: my-day sync --comments-since 72h")
+	} else {
+		color.Green("✓ Fetched comments for %d issues", len(issuesWithComments))
+	}
 
 	// Fetch worklog if enabled
 	var worklogs []jira.WorklogEntry
@@ -176,10 +206,16 @@ func syncTickets(cmd *cobra.Command) error {
 		}
 	}
 
+	// Extract only the issues that have comments from the current user
+	var filteredIssues []jira.Issue
+	for _, iwc := range issuesWithComments {
+		filteredIssues = append(filteredIssues, iwc.Issue)
+	}
+
 	// Create cache
 	cache := TicketCache{
 		LastSync:           time.Now(),
-		Issues:             searchResponse.Issues,
+		Issues:             filteredIssues,
 		IssuesWithComments: issuesWithComments,
 		Worklogs:           worklogs,
 	}

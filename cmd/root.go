@@ -35,9 +35,8 @@ func init() {
 	// Global flags
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.my-day/config.yaml)")
 	rootCmd.PersistentFlags().String("jira-url", "", "Jira base URL")
-	rootCmd.PersistentFlags().String("jira-client-id", "", "Jira OAuth client ID")
-	rootCmd.PersistentFlags().String("jira-client-secret", "", "Jira OAuth client secret")
-	rootCmd.PersistentFlags().String("jira-redirect-uri", "http://localhost:8080/callback", "OAuth redirect URI")
+	rootCmd.PersistentFlags().String("jira-email", "", "Jira email address for API token authentication")
+	rootCmd.PersistentFlags().String("jira-token", "", "Jira API token")
 	rootCmd.PersistentFlags().StringSlice("projects", []string{}, "Jira project keys to track")
 	rootCmd.PersistentFlags().String("llm-mode", "embedded", "LLM mode: embedded, ollama, disabled")
 	rootCmd.PersistentFlags().String("llm-model", "tinyllama", "LLM model name")
@@ -53,9 +52,8 @@ func init() {
 
 	// Bind flags to viper
 	viper.BindPFlag("jira.base_url", rootCmd.PersistentFlags().Lookup("jira-url"))
-	viper.BindPFlag("jira.oauth.client_id", rootCmd.PersistentFlags().Lookup("jira-client-id"))
-	viper.BindPFlag("jira.oauth.client_secret", rootCmd.PersistentFlags().Lookup("jira-client-secret"))
-	viper.BindPFlag("jira.oauth.redirect_uri", rootCmd.PersistentFlags().Lookup("jira-redirect-uri"))
+	viper.BindPFlag("jira.email", rootCmd.PersistentFlags().Lookup("jira-email"))
+	viper.BindPFlag("jira.token", rootCmd.PersistentFlags().Lookup("jira-token"))
 	viper.BindPFlag("jira.projects", rootCmd.PersistentFlags().Lookup("projects"))
 	viper.BindPFlag("llm.mode", rootCmd.PersistentFlags().Lookup("llm-mode"))
 	viper.BindPFlag("llm.model", rootCmd.PersistentFlags().Lookup("llm-model"))

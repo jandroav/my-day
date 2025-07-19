@@ -4,8 +4,9 @@ import "github.com/spf13/viper"
 
 // SetDefaults sets default configuration values
 func SetDefaults() {
-	// Jira defaults
-	viper.SetDefault("jira.oauth.redirect_uri", "http://localhost:8080/callback")
+	// Jira defaults (API token authentication)
+	viper.SetDefault("jira.email", "")
+	viper.SetDefault("jira.token", "")
 	
 	// Default projects for DevOps teams
 	viper.SetDefault("jira.projects", []map[string]string{
@@ -34,6 +35,12 @@ func SetDefaults() {
 	viper.SetDefault("report.include_yesterday", true)
 	viper.SetDefault("report.include_today", true)
 	viper.SetDefault("report.include_in_progress", true)
+	
+	// Export defaults
+	viper.SetDefault("report.export.enabled", false)
+	viper.SetDefault("report.export.folder_path", "~/Documents/my-day-reports")
+	viper.SetDefault("report.export.filename_date", "2006-01-02")
+	viper.SetDefault("report.export.tags", []string{"report", "my-day"})
 
 	// Application defaults
 	viper.SetDefault("verbose", false)

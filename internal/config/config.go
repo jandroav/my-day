@@ -14,6 +14,8 @@ type Config struct {
 // JiraConfig represents Jira configuration
 type JiraConfig struct {
 	BaseURL  string        `mapstructure:"base_url" yaml:"base_url"`
+	Email    string        `mapstructure:"email" yaml:"email"`
+	Token    string        `mapstructure:"token" yaml:"token"`
 	Projects []ProjectInfo `mapstructure:"projects" yaml:"projects"`
 }
 
@@ -45,10 +47,19 @@ type OllamaConfig struct {
 
 // ReportConfig represents report generation configuration
 type ReportConfig struct {
-	Format            string `mapstructure:"format" yaml:"format"`
-	IncludeYesterday  bool   `mapstructure:"include_yesterday" yaml:"include_yesterday"`
-	IncludeToday      bool   `mapstructure:"include_today" yaml:"include_today"`
-	IncludeInProgress bool   `mapstructure:"include_in_progress" yaml:"include_in_progress"`
+	Format            string       `mapstructure:"format" yaml:"format"`
+	IncludeYesterday  bool         `mapstructure:"include_yesterday" yaml:"include_yesterday"`
+	IncludeToday      bool         `mapstructure:"include_today" yaml:"include_today"`
+	IncludeInProgress bool         `mapstructure:"include_in_progress" yaml:"include_in_progress"`
+	Export            ExportConfig `mapstructure:"export" yaml:"export"`
+}
+
+// ExportConfig represents export configuration
+type ExportConfig struct {
+	Enabled       bool   `mapstructure:"enabled" yaml:"enabled"`
+	FolderPath    string `mapstructure:"folder_path" yaml:"folder_path"`
+	FileNameDate  string `mapstructure:"filename_date" yaml:"filename_date"`
+	Tags          []string `mapstructure:"tags" yaml:"tags"`
 }
 
 // Load loads the configuration from viper

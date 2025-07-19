@@ -187,8 +187,8 @@ func (c *Client) getCurrentUser(ctx context.Context) (*User, error) {
 	return &user, nil
 }
 
-// GetMyIssuesWithTodaysComments retrieves issues where the current user added comments today
-func (c *Client) GetMyIssuesWithTodaysComments(ctx context.Context, projectKeys []string, maxResults int) (*SearchResponse, error) {
+// GetMyIssuesWithTodaysComments retrieves issues where the current user added comments recently
+func (c *Client) GetMyIssuesWithTodaysComments(ctx context.Context, projectKeys []string, maxResults int, since time.Time) (*SearchResponse, error) {
 	var jqlParts []string
 	
 	// Add project filter if specified
@@ -197,9 +197,9 @@ func (c *Client) GetMyIssuesWithTodaysComments(ctx context.Context, projectKeys 
 		jqlParts = append(jqlParts, fmt.Sprintf("project in (%s)", projectFilter))
 	}
 	
-	// Add comment filter for today
-	today := time.Now().Format("2006-01-02")
-	jqlParts = append(jqlParts, fmt.Sprintf("comment ~ \"*\" AND updated >= %s", today))
+	// Search for issues updated since the specified time - we'll filter comments afterward
+	sinceDate := since.Format("2006-01-02")
+	jqlParts = append(jqlParts, fmt.Sprintf("updated >= %s", sinceDate))
 	
 	jql := strings.Join(jqlParts, " AND ")
 	jql += " ORDER BY updated DESC"

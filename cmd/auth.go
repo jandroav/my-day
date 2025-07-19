@@ -37,11 +37,8 @@ func init() {
 	// Auth-specific flags
 	authCmd.Flags().Bool("clear", false, "Clear existing authentication")
 	authCmd.Flags().Bool("test", false, "Test existing authentication")
-	authCmd.Flags().String("email", "", "Email address for API token authentication (required)")
-	authCmd.Flags().String("token", "", "API token for authentication (required)")
-	
-	// Mark email and token as required when not using clear or test
-	authCmd.MarkFlagsRequiredTogether("email", "token")
+	authCmd.Flags().String("email", "", "Email address for API token authentication (can be set in config)")
+	authCmd.Flags().String("token", "", "API token for authentication (can be set in config)")
 }
 
 func authenticateWithJira(cmd *cobra.Command) error {
@@ -84,12 +81,20 @@ func authenticateWithJira(cmd *cobra.Command) error {
 		return testAuthentication(client)
 	}
 
-	// Get email and token from flags
+	// Get email and token from flags or config
 	email, _ := cmd.Flags().GetString("email")
 	token, _ := cmd.Flags().GetString("token")
+	
+	// If not provided as flags, use config values
+	if email == "" {
+		email = cfg.Jira.Email
+	}
+	if token == "" {
+		token = cfg.Jira.Token
+	}
 
 	if email == "" || token == "" {
-		return fmt.Errorf("email and token are required. Use --email and --token flags")
+		return fmt.Errorf("email and token are required. Use --email and --token flags or set them in config file")
 	}
 
 	// Create client and save credentials

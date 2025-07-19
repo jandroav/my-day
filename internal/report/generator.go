@@ -2,6 +2,8 @@ package report
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -37,6 +39,10 @@ type Config struct {
 	Debug             bool
 	ShowQuality       bool
 	Verbose           bool
+	ExportEnabled     bool
+	ExportFolderPath  string
+	ExportFileDate    string
+	ExportTags        []string
 }
 
 // NewGenerator creates a new report generator
@@ -1310,4 +1316,87 @@ func removeDuplicates(slice []string) []string {
 	}
 	
 	return result
+}
+
+// ExportToObsidian exports the report content to Obsidian-compatible markdown
+func (g *Generator) ExportToObsidian(reportContent string, targetDate time.Time) error {
+	if !g.config.ExportEnabled {
+		return nil
+	}
+
+	// Expand tilde in folder path
+	folderPath := g.config.ExportFolderPath
+	if strings.HasPrefix(folderPath, "~/") {
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			return fmt.Errorf("failed to get home directory: %w", err)
+		}
+		folderPath = filepath.Join(homeDir, folderPath[2:])
+	}
+
+	// Create folder if it doesn't exist
+	if err := os.MkdirAll(folderPath, 0755); err != nil {
+		return fmt.Errorf("failed to create export folder: %w", err)
+	}
+
+	// Generate filename with date
+	filename := targetDate.Format(g.config.ExportFileDate) + ".md"
+	filePath := filepath.Join(folderPath, filename)
+
+	// Create Obsidian-compatible content with frontmatter
+	obsidianContent := g.generateObsidianMarkdown(reportContent, targetDate)
+
+	// Write to file
+	if err := os.WriteFile(filePath, []byte(obsidianContent), 0644); err != nil {
+		return fmt.Errorf("failed to write export file: %w", err)
+	}
+
+	return nil
+}
+
+// generateObsidianMarkdown creates Obsidian-compatible markdown with proper frontmatter and tags
+func (g *Generator) generateObsidianMarkdown(reportContent string, targetDate time.Time) string {
+	var content strings.Builder
+
+	// Add YAML frontmatter
+	content.WriteString("---\n")
+	content.WriteString(fmt.Sprintf("date: %s\n", targetDate.Format("2006-01-02")))
+	content.WriteString(fmt.Sprintf("title: Daily Standup Report - %s\n", targetDate.Format("January 2, 2006")))
+	content.WriteString("type: daily-report\n")
+	
+	// Add tags from config plus the date tag
+	allTags := append(g.config.ExportTags, targetDate.Format("2006-01-02"))
+	content.WriteString("tags:\n")
+	for _, tag := range allTags {
+		content.WriteString(fmt.Sprintf("  - %s\n", tag))
+	}
+	
+	// Add creation timestamp
+	content.WriteString(fmt.Sprintf("created: %s\n", time.Now().Format("2006-01-02T15:04:05-07:00")))
+	content.WriteString("---\n\n")
+
+	// Add linking to previous and next reports
+	yesterday := targetDate.Add(-24 * time.Hour)
+	tomorrow := targetDate.Add(24 * time.Hour)
+	
+	content.WriteString("## Navigation\n\n")
+	content.WriteString(fmt.Sprintf("← [[%s]] | [[%s]] →\n\n", 
+		yesterday.Format(g.config.ExportFileDate), 
+		tomorrow.Format(g.config.ExportFileDate)))
+
+	// Add the main report content
+	content.WriteString(reportContent)
+
+	// Add footer with backlinks and tags
+	content.WriteString("\n\n---\n\n")
+	content.WriteString("## Tags\n\n")
+	for _, tag := range allTags {
+		content.WriteString(fmt.Sprintf("#%s ", tag))
+	}
+	content.WriteString("\n\n")
+	
+	content.WriteString("## Related Notes\n\n")
+	content.WriteString("*This section will be automatically populated by Obsidian's backlinks*\n")
+
+	return content.String()
 }

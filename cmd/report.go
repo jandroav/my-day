@@ -38,6 +38,11 @@ func init() {
 	reportCmd.Flags().Bool("debug", false, "Enable debug output for LLM processing")
 	reportCmd.Flags().Bool("show-quality", false, "Show summary quality indicators")
 	reportCmd.Flags().Bool("verbose", false, "Show verbose LLM processing information")
+	
+	// Export-specific flags
+	reportCmd.Flags().Bool("export", false, "Export report to markdown file")
+	reportCmd.Flags().String("export-folder", "", "Folder path for exported reports (overrides config)")
+	reportCmd.Flags().StringSlice("export-tags", []string{}, "Additional tags for exported report (overrides config)")
 }
 
 func generateReport(cmd *cobra.Command) error {
@@ -85,6 +90,22 @@ func generateReport(cmd *cobra.Command) error {
 	debug, _ := cmd.Flags().GetBool("debug")
 	showQuality, _ := cmd.Flags().GetBool("show-quality")
 	verbose, _ := cmd.Flags().GetBool("verbose")
+	
+	// Export flags
+	exportEnabled, _ := cmd.Flags().GetBool("export")
+	exportFolder, _ := cmd.Flags().GetString("export-folder")
+	exportTags, _ := cmd.Flags().GetStringSlice("export-tags")
+	
+	// Override export settings if flags are provided
+	if exportEnabled {
+		cfg.Report.Export.Enabled = true
+	}
+	if exportFolder != "" {
+		cfg.Report.Export.FolderPath = exportFolder
+	}
+	if len(exportTags) > 0 {
+		cfg.Report.Export.Tags = exportTags
+	}
 
 	// Create report generator
 	generator := report.NewGenerator(&report.Config{
@@ -101,6 +122,10 @@ func generateReport(cmd *cobra.Command) error {
 		Debug:             debug,
 		ShowQuality:       showQuality,
 		Verbose:           verbose,
+		ExportEnabled:     cfg.Report.Export.Enabled,
+		ExportFolderPath:  cfg.Report.Export.FolderPath,
+		ExportFileDate:    cfg.Report.Export.FileNameDate,
+		ExportTags:        cfg.Report.Export.Tags,
 	})
 
 	color.Cyan("📋 Generating daily standup report...")
@@ -138,6 +163,18 @@ func generateReport(cmd *cobra.Command) error {
 	
 	if err != nil {
 		return fmt.Errorf("failed to generate report: %w", err)
+	}
+
+	// Handle export to Obsidian if enabled
+	if err := generator.ExportToObsidian(reportContent, targetDate); err != nil {
+		color.Yellow("⚠️  Export to Obsidian failed: %v", err)
+	} else if cfg.Report.Export.Enabled || exportEnabled {
+		exportPath := cfg.Report.Export.FolderPath
+		if exportFolder != "" {
+			exportPath = exportFolder
+		}
+		filename := targetDate.Format(cfg.Report.Export.FileNameDate) + ".md"
+		color.Green("✓ Report exported to Obsidian: %s/%s", exportPath, filename)
 	}
 
 	// Handle output

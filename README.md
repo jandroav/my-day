@@ -10,7 +10,7 @@ A colorful Golang CLI tool that helps DevOps team members track Jira tickets acr
 - [Complete Command Reference](#-complete-command-reference)
 - [Configuration](#configuration)
 - [Usage Examples & Workflows](#-usage-examples--workflows)
-- [Jira OAuth Setup](#jira-oauth-setup)
+- [Jira API Token Setup](#jira-api-token-setup)
 - [LLM Integration](#llm-integration)
 - [Troubleshooting & FAQ](#-troubleshooting--faq)
 - [Development](#️-development)
@@ -22,6 +22,7 @@ A colorful Golang CLI tool that helps DevOps team members track Jira tickets acr
 - 🎯 **Multi-team Support**: Track tickets across DevOps, Interop, Foundation, Enterprise, and LBIO teams
 - 🔐 **Simple Authentication**: Secure API token authentication with Jira Cloud (recommended by Atlassian)
 - 📊 **Daily Reports**: Generate colorful console or markdown reports for standups
+- 📝 **Obsidian Export**: Export reports to Obsidian-compatible markdown with interconnected daily notes
 - ⚙️ **Flexible Configuration**: YAML config, CLI flags, and environment variables
 - 🚀 **Fast & Offline**: Local caching for quick report generation
 - 🤖 **AI Summarization**: Optional embedded LLM or Ollama integration with enhanced features
@@ -96,11 +97,36 @@ jira:
 
 ### 4. Authenticate
 
+You can authenticate in three ways:
+
+#### Option A: CLI Flags (Quick Setup)
 ```bash
 my-day auth --email your-email@example.com --token your-api-token
 ```
 
-This saves your credentials for future use.
+#### Option B: Configuration File (Recommended)
+Add to your `~/.my-day/config.yaml`:
+```yaml
+jira:
+  base_url: "https://your-company.atlassian.net"
+  email: "your-email@example.com"
+  token: "your-api-token"
+```
+Then run:
+```bash
+my-day auth
+```
+
+#### Option C: Environment Variables (CI/CD Friendly)
+```bash
+export MY_DAY_JIRA_EMAIL="your-email@example.com"
+export MY_DAY_JIRA_TOKEN="your-api-token"
+my-day auth
+```
+
+All methods save your credentials for future use.
+
+**🔒 Security Note:** For better security, consider using environment variables instead of storing tokens in config files, especially in shared environments.
 
 ### 5. Sync Your Tickets
 
@@ -130,6 +156,8 @@ Available on all commands:
 | `-v, --verbose` | Enable verbose output | `false` |
 | `-q, --quiet` | Enable quiet output | `false` |
 | `--jira-url` | Jira base URL | - |
+| `--jira-email` | Jira email for API token | - |
+| `--jira-token` | Jira API token | - |
 | `--projects` | Jira project keys (comma-separated) | - |
 | `--llm-mode` | LLM mode (embedded\|ollama\|disabled) | `embedded` |
 | `--llm-model` | LLM model name | `tinyllama` |
@@ -169,15 +197,26 @@ my-day auth [flags]
 ```
 
 **Flags:**
-- `--email` - Email address for API token authentication (required)
-- `--token` - API token for authentication (required)
+- `--email` - Email address for API token authentication (can be set in config)
+- `--token` - API token for authentication (can be set in config)
 - `--clear` - Clear existing authentication
 - `--test` - Test existing authentication
 
 **Examples:**
 ```bash
+# Using CLI flags
 my-day auth --email your-email@example.com --token your-api-token
+
+# Using config file (email and token set in config.yaml)
+my-day auth
+
+# Using environment variables
+MY_DAY_JIRA_EMAIL=your-email@example.com MY_DAY_JIRA_TOKEN=your-token my-day auth
+
+# Clear authentication
 my-day auth --clear
+
+# Test authentication
 my-day auth --test
 ```
 
@@ -220,6 +259,9 @@ my-day report [flags]
 - `--debug` - Enable debug output for LLM processing
 - `--show-quality` - Show summary quality indicators
 - `--verbose` - Show verbose LLM processing information
+- `--export` - Export report to Obsidian-compatible markdown file
+- `--export-folder` - Folder path for exported reports (overrides config)
+- `--export-tags` - Additional tags for exported report (overrides config)
 
 **Examples:**
 ```bash
@@ -229,6 +271,9 @@ my-day report --output report.md
 my-day report --no-llm
 my-day report --detailed
 my-day report --debug --show-quality --verbose
+my-day report --export
+my-day report --export --export-folder ~/obsidian-vault/daily-reports
+my-day report --export --export-tags work,standup,devops
 ```
 
 #### 5. `my-day config`
@@ -307,6 +352,8 @@ All configuration can be overridden using environment variables with the `MY_DAY
 | Environment Variable | Description | Default |
 |---------------------|-------------|---------|
 | `MY_DAY_JIRA_BASE_URL` | Jira base URL | - |
+| `MY_DAY_JIRA_EMAIL` | Jira email for API token | - |
+| `MY_DAY_JIRA_TOKEN` | Jira API token | - |
 | `MY_DAY_JIRA_PROJECTS` | Comma-separated project keys | - |
 | `MY_DAY_LLM_MODE` | LLM mode | `embedded` |
 | `MY_DAY_LLM_MODEL` | LLM model name | `tinyllama` |
@@ -317,6 +364,10 @@ All configuration can be overridden using environment variables with the `MY_DAY
 | `MY_DAY_REPORT_INCLUDE_YESTERDAY` | Include yesterday's work | `true` |
 | `MY_DAY_REPORT_INCLUDE_TODAY` | Include today's work | `true` |
 | `MY_DAY_REPORT_INCLUDE_IN_PROGRESS` | Include in-progress tickets | `true` |
+| `MY_DAY_REPORT_EXPORT_ENABLED` | Enable export to markdown | `false` |
+| `MY_DAY_REPORT_EXPORT_FOLDER_PATH` | Export folder path | `~/Documents/my-day-reports` |
+| `MY_DAY_REPORT_EXPORT_FILENAME_DATE` | Date format for filenames | `2006-01-02` |
+| `MY_DAY_REPORT_EXPORT_TAGS` | Comma-separated export tags | `report,my-day` |
 | `MY_DAY_VERBOSE` | Enable verbose output | `false` |
 | `MY_DAY_QUIET` | Enable quiet output | `false` |
 
@@ -338,6 +389,8 @@ Default location: `~/.my-day/config.yaml`
 ```yaml
 jira:
   base_url: "https://your-instance.atlassian.net"
+  email: "your-email@example.com"      # Optional: API token email
+  token: "your-api-token"              # Optional: API token (consider using env vars for security)
   projects:
     - key: "DEVOPS"
       name: "DevOps Team"
@@ -366,6 +419,11 @@ report:
   include_yesterday: true
   include_today: true
   include_in_progress: true
+  export:
+    enabled: false                           # Enable export to markdown
+    folder_path: "~/Documents/my-day-reports"  # Export folder path
+    filename_date: "2006-01-02"             # Date format for filenames
+    tags: ["report", "my-day"]              # Tags for Obsidian
 ```
 
 ### CLI Flags
@@ -422,6 +480,9 @@ my-day report --debug --show-quality
 # Generate markdown report for sharing
 my-day report --report-format markdown --output standup-$(date +%Y-%m-%d).md
 
+# Export to Obsidian for daily notes
+my-day report --export --export-folder ~/obsidian-vault/daily-reports
+
 # Quick sync before standup
 my-day sync --since 24h && my-day report --detailed
 ```
@@ -432,6 +493,12 @@ my-day sync --since 24h && my-day report --detailed
 for day in {1..7}; do
   date=$(date -d "-$day days" +%Y-%m-%d)
   my-day report --date $date --output weekly-review-$date.md
+done
+
+# Export past week to Obsidian (creates interconnected daily notes)
+for day in {1..7}; do
+  date=$(date -d "-$day days" +%Y-%m-%d)
+  my-day report --date $date --export --export-tags weekly-review,standup
 done
 
 # Sync with extended timeframe
@@ -596,7 +663,7 @@ LLM Processing Report:
 4. Copy the generated token
 5. Run `my-day auth --email your-email@example.com --token your-api-token`
 
-**Why API tokens?** Atlassian recommends API tokens for CLI tools as they're more secure and don't require complex OAuth app setup.
+**Why API tokens?** Atlassian recommends API tokens for CLI tools as they're more secure and simpler to set up than OAuth applications.
 
 **📋 For detailed setup instructions, see [Jira Setup Guide](docs/jira-setup.md)**
 
@@ -684,6 +751,162 @@ Recent activity: 3 issues, 5 comments
 - Include deployment status and environments
 - Mention specific actions taken (deployed, configured, tested)
 - Reference infrastructure components and tools used
+
+## 📝 Obsidian Export Integration
+
+Export your daily standup reports to Obsidian-compatible markdown files with full interconnection for the graph view.
+
+### Features
+
+- **YAML Frontmatter**: Proper Obsidian 2025 properties format
+- **Date-based Filenames**: Configurable date format for consistent naming
+- **Wiki-style Links**: Automatic navigation links to previous/next day reports
+- **Tag Integration**: Configurable tags plus automatic date tags
+- **Graph View Connectivity**: Perfect interconnection in Obsidian's graph view
+- **Folder Organization**: Configurable export folder path
+
+### Quick Setup
+
+1. **Enable in Configuration**:
+```yaml
+report:
+  export:
+    enabled: true
+    folder_path: "~/obsidian-vault/daily-reports"
+    filename_date: "2006-01-02"
+    tags: ["report", "my-day", "standup"]
+```
+
+2. **Or Use CLI Flags**:
+```bash
+my-day report --export --export-folder ~/obsidian-vault/daily-reports
+```
+
+### Generated File Structure
+
+Each exported report creates a markdown file with:
+
+```markdown
+---
+date: 2025-07-19
+title: Daily Standup Report - July 19, 2025
+type: daily-report
+tags:
+  - report
+  - my-day
+  - standup
+  - 2025-07-19
+created: 2025-07-19T08:30:00-07:00
+---
+
+## Navigation
+
+← [[2025-07-18]] | [[2025-07-20]] →
+
+# Daily Standup Report - July 19, 2025
+
+[Your report content here...]
+
+---
+
+## Tags
+
+#report #my-day #standup #2025-07-19 
+
+## Related Notes
+
+*This section will be automatically populated by Obsidian's backlinks*
+```
+
+### Usage Examples
+
+#### Basic Export
+```bash
+# Export today's report
+my-day report --export
+
+# Export specific date
+my-day report --date 2025-07-18 --export
+```
+
+#### Custom Configuration
+```bash
+# Custom folder and tags
+my-day report --export \
+  --export-folder ~/documents/obsidian-vault/work/daily-reports \
+  --export-tags work,devops,standup,team-update
+
+# For team leads - export with team-specific tags
+my-day report --export --export-tags devops-team,leadership,status-update
+```
+
+#### Automation for Daily Notes
+```bash
+#!/bin/bash
+# daily-obsidian-export.sh
+
+# Sync latest data and export to Obsidian
+my-day sync --since 24h
+my-day report --export \
+  --export-folder ~/obsidian-vault/daily-notes \
+  --export-tags daily,work,standup,$(date +%A)
+
+echo "Daily report exported to Obsidian!"
+```
+
+#### Backfill Historical Reports
+```bash
+# Export past month of reports for Obsidian
+for i in {1..30}; do
+  date=$(date -d "-$i days" +%Y-%m-%d)
+  my-day report --date $date --export \
+    --export-tags historical,standup,backfill
+  echo "Exported report for $date"
+done
+```
+
+### Configuration Options
+
+| Setting | Description | Default | Example |
+|---------|-------------|---------|---------|
+| `enabled` | Enable export functionality | `false` | `true` |
+| `folder_path` | Export destination folder | `~/Documents/my-day-reports` | `~/obsidian-vault/daily-reports` |
+| `filename_date` | Date format for filenames | `2006-01-02` | `2006-01-02` (YYYY-MM-DD) |
+| `tags` | Default tags for exported files | `["report", "my-day"]` | `["work", "standup", "devops"]` |
+
+### Obsidian Integration Tips
+
+1. **Graph View**: Daily reports will automatically link to adjacent days
+2. **Tags Panel**: Use consistent tags for easy filtering and organization
+3. **Search**: All reports are searchable through Obsidian's search
+4. **Backlinks**: Related tickets and team members will show automatic backlinks
+5. **Templates**: Reports follow consistent structure for template-based workflows
+
+### Environment Variables
+
+```bash
+# Enable export via environment variables
+export MY_DAY_REPORT_EXPORT_ENABLED=true
+export MY_DAY_REPORT_EXPORT_FOLDER_PATH="~/obsidian-vault/daily-reports"
+export MY_DAY_REPORT_EXPORT_TAGS="report,my-day,devops"
+
+# Then run normally
+my-day report
+```
+
+### Troubleshooting Export
+
+**Problem**: Export folder not created
+- **Solution**: Ensure parent directories exist or use absolute paths
+
+**Problem**: Permission denied when writing files
+- **Solution**: Check folder permissions: `chmod 755 ~/obsidian-vault/daily-reports`
+
+**Problem**: Obsidian not recognizing files
+- **Solution**: Ensure files are saved with `.md` extension and valid YAML frontmatter
+
+**Problem**: Tags not appearing in Obsidian
+- **Solution**: Use the 2025 format with tags as lists in frontmatter (automatic in my-day)
 
 ## ❓ Troubleshooting & FAQ
 
@@ -833,6 +1056,15 @@ A:
 #### Q: Can I run this in CI/CD?
 A: Yes! You can copy the auth.json file or use a dedicated service account with API token. See [Automation & Scripting](#automation--scripting) examples.
 
+#### Q: How do I use the Obsidian export feature?
+A: Enable export in config or use `--export` flag. Reports are exported as interconnected markdown files perfect for Obsidian's graph view. See [Obsidian Export Integration](#-obsidian-export-integration) for details.
+
+#### Q: Can I customize the export format and location?
+A: Yes! Configure `report.export.folder_path`, `report.export.tags`, and `report.export.filename_date` in your config file, or use CLI flags like `--export-folder` and `--export-tags`.
+
+#### Q: What are the different ways to set my Jira email and API token?
+A: You can set them via: 1) CLI flags (`--jira-email`, `--jira-token`), 2) Config file (`jira.email`, `jira.token`), or 3) Environment variables (`MY_DAY_JIRA_EMAIL`, `MY_DAY_JIRA_TOKEN`). Environment variables are recommended for better security.
+
 #### Q: How do I backup my configuration?
 A: Copy the config file:
 ```bash
@@ -881,7 +1113,7 @@ MIT License - see [LICENSE](LICENSE) file for details.
 
 ## Documentation
 
-- 📋 **[Jira Setup Guide](docs/jira-setup.md)** - Complete OAuth configuration walkthrough
+- 📋 **[Jira Setup Guide](docs/jira-setup.md)** - Complete API token setup walkthrough
 - 🚀 **[Installation Guide](docs/installation.md)** - Install and initial setup
 - 📖 **[Usage Guide](docs/usage.md)** - Commands, workflows, and examples
 - ⚙️ **[Configuration Reference](docs/configuration.md)** - All configuration options
