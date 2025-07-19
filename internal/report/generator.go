@@ -279,13 +279,18 @@ func (g *Generator) generateConsoleWithComments(issues []jira.Issue, commentsMap
 			allComments = append(allComments, comments...)
 		}
 		
-		if len(allComments) > 0 {
+		if hasMeaningfulComments(allComments) {
 			// Use the enhanced LLM method for intelligent summary
 			summary, err := g.summarizer.GenerateStandupSummaryWithComments(issues, allComments, worklogs)
 			if err == nil && summary != "" {
 				report.WriteString("🤖 AI SUMMARY OF TODAY'S WORK\n")
 				report.WriteString(fmt.Sprintf("%s\n\n", summary))
 			}
+		} else if len(allComments) > 0 {
+			// Show warning when there are comments but they're not meaningful enough for AI summary
+			report.WriteString("⚠️  AI SUMMARY SKIPPED\n")
+			report.WriteString("No meaningful comment content found for AI summarization.\n")
+			report.WriteString("Consider adding more detailed comments to your Jira tickets for better AI insights.\n\n")
 		}
 	}
 
@@ -596,6 +601,25 @@ func min(a, b int) int {
 	return b
 }
 
+// hasMeaningfulComments checks if there are any non-empty, meaningful comments
+func hasMeaningfulComments(comments []jira.Comment) bool {
+	if len(comments) == 0 {
+		return false
+	}
+	
+	// Check if any comment has non-empty, meaningful text
+	for _, comment := range comments {
+		text := strings.TrimSpace(comment.Body.Text)
+		// Consider a comment meaningful if it has at least 3 characters
+		// (to filter out very short comments like "ok", "done", etc.)
+		if len(text) > 3 {
+			return true
+		}
+	}
+	
+	return false
+}
+
 func (g *Generator) formatIssueConsoleWithComments(issue jira.Issue, comments []jira.Comment) string {
 	var result strings.Builder
 	
@@ -652,13 +676,18 @@ func (g *Generator) generateMarkdownWithComments(issues []jira.Issue, commentsMa
 			allComments = append(allComments, comments...)
 		}
 		
-		if len(allComments) > 0 {
+		if hasMeaningfulComments(allComments) {
 			// Use the enhanced LLM method for intelligent summary
 			summary, err := g.summarizer.GenerateStandupSummaryWithComments(issues, allComments, worklogs)
 			if err == nil && summary != "" {
 				report.WriteString("## 🤖 AI Summary of Today's Work\n\n")
 				report.WriteString(fmt.Sprintf("%s\n\n", summary))
 			}
+		} else if len(allComments) > 0 {
+			// Show warning when there are comments but they're not meaningful enough for AI summary
+			report.WriteString("## ⚠️ AI Summary Skipped\n\n")
+			report.WriteString("No meaningful comment content found for AI summarization.\n")
+			report.WriteString("Consider adding more detailed comments to your Jira tickets for better AI insights.\n\n")
 		}
 	}
 
@@ -890,7 +919,7 @@ func (g *Generator) generateConsoleWithEnhancedContext(issues []jira.Issue, comm
 			allComments = append(allComments, comments...)
 		}
 		
-		if len(allComments) > 0 {
+		if hasMeaningfulComments(allComments) {
 			// Use enhanced data processor for better analysis
 			processor := llm.NewEnhancedDataProcessor(g.config.Debug)
 			processedData, err := processor.ProcessIssuesWithComments(issues, allComments)
@@ -927,6 +956,11 @@ func (g *Generator) generateConsoleWithEnhancedContext(issues []jira.Issue, comm
 					report.WriteString(fmt.Sprintf("%s\n\n", summary))
 				}
 			}
+		} else if len(allComments) > 0 {
+			// Show warning when there are comments but they're not meaningful enough for AI summary
+			report.WriteString("⚠️  AI SUMMARY SKIPPED (Enhanced Mode)\n")
+			report.WriteString("No meaningful comment content found for AI summarization.\n")
+			report.WriteString("Consider adding more detailed comments to your Jira tickets for better AI insights.\n\n")
 		}
 	}
 
@@ -1019,7 +1053,7 @@ func (g *Generator) generateMarkdownWithEnhancedContext(issues []jira.Issue, com
 			allComments = append(allComments, comments...)
 		}
 		
-		if len(allComments) > 0 {
+		if hasMeaningfulComments(allComments) {
 			// Use enhanced data processor for better analysis
 			processor := llm.NewEnhancedDataProcessor(g.config.Debug)
 			processedData, err := processor.ProcessIssuesWithComments(issues, allComments)
@@ -1058,6 +1092,11 @@ func (g *Generator) generateMarkdownWithEnhancedContext(issues []jira.Issue, com
 					report.WriteString(fmt.Sprintf("%s\n\n", summary))
 				}
 			}
+		} else if len(allComments) > 0 {
+			// Show warning when there are comments but they're not meaningful enough for AI summary
+			report.WriteString("## ⚠️ AI Summary Skipped (Enhanced Mode)\n\n")
+			report.WriteString("No meaningful comment content found for AI summarization.\n")
+			report.WriteString("Consider adding more detailed comments to your Jira tickets for better AI insights.\n\n")
 		}
 	}
 
@@ -1498,12 +1537,17 @@ func (g *Generator) generateConsoleFieldGrouped(fieldGroups map[string][]jira.Is
 			allIssues = append(allIssues, groupIssues...)
 		}
 		
-		if len(allComments) > 0 {
+		if hasMeaningfulComments(allComments) {
 			summary, err := g.summarizer.GenerateStandupSummaryWithComments(allIssues, allComments, worklogs)
 			if err == nil && summary != "" {
 				report.WriteString("🤖 AI SUMMARY OF TODAY'S WORK\n")
 				report.WriteString(fmt.Sprintf("%s\n\n", summary))
 			}
+		} else if len(allComments) > 0 {
+			// Show warning when there are comments but they're not meaningful enough for AI summary
+			report.WriteString("⚠️  AI SUMMARY SKIPPED\n")
+			report.WriteString("No meaningful comment content found for AI summarization.\n")
+			report.WriteString("Consider adding more detailed comments to your Jira tickets for better AI insights.\n\n")
 		}
 	}
 
@@ -1603,12 +1647,17 @@ func (g *Generator) generateMarkdownFieldGrouped(fieldGroups map[string][]jira.I
 			allIssues = append(allIssues, groupIssues...)
 		}
 		
-		if len(allComments) > 0 {
+		if hasMeaningfulComments(allComments) {
 			summary, err := g.summarizer.GenerateStandupSummaryWithComments(allIssues, allComments, worklogs)
 			if err == nil && summary != "" {
 				report.WriteString("## 🤖 AI Summary of Today's Work\n\n")
 				report.WriteString(fmt.Sprintf("%s\n\n", summary))
 			}
+		} else if len(allComments) > 0 {
+			// Show warning when there are comments but they're not meaningful enough for AI summary
+			report.WriteString("## ⚠️ AI Summary Skipped\n\n")
+			report.WriteString("No meaningful comment content found for AI summarization.\n")
+			report.WriteString("Consider adding more detailed comments to your Jira tickets for better AI insights.\n\n")
 		}
 	}
 
