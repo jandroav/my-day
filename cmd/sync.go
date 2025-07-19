@@ -51,8 +51,8 @@ func init() {
 	syncCmd.Flags().Int("max-results", 100, "Maximum number of tickets to fetch")
 	syncCmd.Flags().Bool("force", false, "Force sync even if recently synced")
 	syncCmd.Flags().Bool("worklog", true, "Include worklog entries")
-	syncCmd.Flags().Duration("since", 7*24*time.Hour, "Sync tickets updated since this duration ago")
-	syncCmd.Flags().Duration("comments-since", 24*time.Hour, "Look for your comments since this duration ago")
+	syncCmd.Flags().Duration("since", 7*24*time.Hour, "Fetch tickets and worklogs updated since this duration ago")
+	syncCmd.Flags().Duration("comments-since", 24*time.Hour, "Look for your comments within this duration (defaults to --since value if not specified)")
 }
 
 func syncTickets(cmd *cobra.Command) error {
@@ -113,19 +113,27 @@ func syncTickets(cmd *cobra.Command) error {
 
 	color.White("Fetching tickets from projects: %v", projectKeys)
 
-	// Fetch issues with recent comments
-	commentsSince, _ := cmd.Flags().GetDuration("comments-since")
-	sinceTime := time.Now().Add(-commentsSince)
+	// Fetch issues with recent updates (using --since flag)
+	since, _ := cmd.Flags().GetDuration("since")
+	ticketsSinceTime := time.Now().Add(-since)
 	
-	color.White("Searching for tickets updated since %s...", sinceTime.Format("2006-01-02"))
-	searchResponse, err := client.GetMyIssuesWithTodaysComments(ctx, projectKeys, maxResults, sinceTime)
+	color.White("Searching for tickets updated since %s...", ticketsSinceTime.Format("2006-01-02"))
+	searchResponse, err := client.GetMyIssuesWithTodaysComments(ctx, projectKeys, maxResults, ticketsSinceTime)
 	if err != nil {
 		return fmt.Errorf("failed to fetch issues: %w", err)
 	}
 
 	color.Green("✓ Found %d updated issues to check for your comments", len(searchResponse.Issues))
 
-	// Fetch comments for each issue (using the same sinceTime calculated above)
+	// Fetch comments for each issue (using --comments-since flag)
+	commentsSince, _ := cmd.Flags().GetDuration("comments-since")
+	
+	// If comments-since wasn't explicitly set, use the same duration as --since
+	if !cmd.Flags().Changed("comments-since") {
+		commentsSince = since
+	}
+	
+	commentsSinceTime := time.Now().Add(-commentsSince)
 	
 	color.White("Fetching your comments from the last %v...", commentsSince)
 	var issuesWithComments []IssueWithComments
@@ -138,7 +146,7 @@ func syncTickets(cmd *cobra.Command) error {
 	
 	if verbose, _ := cmd.Flags().GetBool("verbose"); verbose {
 		color.White("Looking for comments by user: %s (ID: %s)", userInfo.DisplayName, userInfo.AccountID)
-		color.White("Filtering for comments after: %s", sinceTime.Format("2006-01-02 15:04:05"))
+		color.White("Filtering for comments after: %s", commentsSinceTime.Format("2006-01-02 15:04:05"))
 	}
 	
 	for _, issue := range searchResponse.Issues {
@@ -159,7 +167,7 @@ func syncTickets(cmd *cobra.Command) error {
 			}
 			
 			if comment.Author.AccountID == userInfo.AccountID && 
-			   comment.Created.Time.After(sinceTime) {
+			   comment.Created.Time.After(commentsSinceTime) {
 				todaysComments = append(todaysComments, comment)
 				if verbose, _ := cmd.Flags().GetBool("verbose"); verbose {
 					color.Green("    ✓ This comment matches!")
@@ -187,12 +195,11 @@ func syncTickets(cmd *cobra.Command) error {
 	// Fetch worklog if enabled
 	var worklogs []jira.WorklogEntry
 	if includeWorklog, _ := cmd.Flags().GetBool("worklog"); includeWorklog {
-		since, _ := cmd.Flags().GetDuration("since")
-		sinceTime := time.Now().Add(-since)
+		worklogSinceTime := time.Now().Add(-since)
 		
-		color.White("Fetching worklog entries since %s...", sinceTime.Format("2006-01-02"))
+		color.White("Fetching worklog entries since %s...", worklogSinceTime.Format("2006-01-02"))
 		
-		worklogs, err = client.GetMyWorklog(ctx, sinceTime)
+		worklogs, err = client.GetMyWorklog(ctx, worklogSinceTime)
 		if err != nil {
 			color.Yellow("Warning: Failed to fetch worklog: %v", err)
 			worklogs = []jira.WorklogEntry{} // Continue without worklog
